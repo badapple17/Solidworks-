@@ -13,6 +13,52 @@
    - 再查 `references/*.md`
    - 最后才写新的最小验证脚本
 
+## 离线查证：本机 CHM + SwConst（不联网，最可靠）
+
+联网检索经常拿到错版本或旧参数表。本机已装 SolidWorks 时，**先解包本地 CHM**：
+
+```bash
+# 1) 找到 CHM（路径含空格/中文，先复制到 ASCII 目录，hh.exe 对中文路径不稳）
+ls "C:/Program Files/SOLIDWORKS Corp/SOLIDWORKS/api/help/sldworksapi.chm"
+cp "C:/Program Files/SOLIDWORKS Corp/SOLIDWORKS/api/help/sldworksapi.chm" /c/swapi_tmp/
+# 2) 解包成 17000+ 个 htm，每个成员一个文件
+hh.exe -decompile C:/swapi_tmp/out C:/swapi_tmp/sldworksapi.chm
+```
+
+文件名规则：`SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.<接口>~<成员>.html`，
+可直接按成员名搜：
+
+```bash
+ls /c/swapi_tmp/out | grep "IView~InsertBomTable4"
+```
+
+抽正文（必须设 `PYTHONIOENCODING=utf-8`，否则 Windows GBK 控制台报
+`UnicodeEncodeError: '\ufeff'`；读文件用 `utf-8-sig`）：
+
+```python
+import re, html, pathlib
+p = pathlib.Path(r"C:\swapi_tmp\out\SolidWorks.Interop.sldworks~SolidWorks.Interop.sldworks.IView~InsertBomTable4.html")
+t = p.read_text(encoding="utf-8-sig", errors="ignore")
+t = re.sub(r"<script.*?</script>|<style.*?</style>", " ", t, flags=re.S | re.I)
+t = re.sub(r"<[^>]+>", " ", t)
+print(re.sub(r"[ \t\xa0]+", " ", html.unescape(t))[:4000])
+```
+
+**枚举数值直接读 `comtypes.gen.SwConst` 的属性**（不必猜、不必反射 DLL）：
+
+```bash
+py -3.12 -c "import comtypes.gen.SwConst as C; print(C.swBomType_PartsOnly, C.swBomType_TopLevelOnly, C.swBomType_Indented)"
+# 1 2 3 —— 注意不是按顶层/零件顺序，凭直觉写必然弄错
+py -3.12 -c "import comtypes.gen.SwConst as C; [print(n, getattr(C,n)) for n in sorted(dir(C)) if n.startswith('swComponentSuppressionState')]"
+```
+
+规则：
+
+- **枚举名的数值只认 `SwConst`（类型库生成）或 `swconst.dll` 反射**，不认博客、不认记忆。
+- **参数顺序只认 CHM 的 `Insert... Method` 页**（含 VB/C#/C++ 三份签名）。
+- 同一成员有多个编号版本（`InsertBomTable` / `InsertBomTable2` / `...4`）时，
+  取 CHM 里参数表与本机类型库一致的那个；旧版博客多数过时。
+
 ## 必查 API 类型
 
 - `IModelDocExtension.SaveAs*`、`OpenDoc*`、`CloseDoc`、导出相关 API

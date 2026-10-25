@@ -5,10 +5,18 @@
         → 两个托钩(绕卷边 X 转) → 手机(参考件，仅展开位)
 U 座偏置：转盘上的销轴在 (0,-22,18) 局部坐标，所以转盘以上所有零件整体偏 -22 mm
 （实物照片：U 座骑在转盘边缘，不在圆心）。
-永久配合只保留「同心 + 平面重合」，转动自由度全部放开，装配体可直接拖动。
-销类零件不加轴向配合：同轴+初始位置即可，加了反而与同心配合冗余（SW 报 error 5）。
+每个转动件只留一条绕 X 的转动自由度，其余自由度必须用定位配合消掉：
+- 底座：`FixComponent()` 固定（AddComponent5 插入的第一个件默认不是固定件，
+  不固定时拖动任何零件都会把整台支架带着平移）。
+- 下销/上销：销头内侧面或销端面与座耳/臂外侧面重合，防止销轴轴向窜出。
+- 背板：凸舌侧面与臂叉口内侧重合，防止背板沿上销滑出。
+- 托钩：侧面到背板侧面 10 mm 距离配合，防止抱箍沿卷边滑出；两钩胶垫顶面重合，
+  保证左右钩同步翻转。
+- 手机：背面贴背板 + 底面贴右钩胶垫 + 手机右视基准面与背板右视基准面重合，
+  消掉最后一个 X 向平移自由度。
 姿态用临时角度配合驱动，随后删除配合（本机 SW2023 的 SetTransformAndSolve2
 加不上旋转，这是已验证的替代路线；删配合后姿态保留）。
+托钩同步后，摆姿态只能给一个钩加临时角度（另一个由同步配合跟随），否则 error 5。
 
 角度基准（都用与转轴平行的平面）：
   T_ARM   臂背面(+Y) ↔ 转盘座顶面(+Z)：初始 90°，后仰 α → 90+α
@@ -28,10 +36,11 @@ from stand_common import OUT
 from sw_session import SolidWorksSession
 from sw_assembly import (
     add_component, collect_mate_feature_summary, delete_mates,
-    SW_MATE_COINCIDENT, SW_MATE_CONCENTRIC,
+    get_assembly_entity, get_component_feature,
+    SW_MATE_COINCIDENT, SW_MATE_CONCENTRIC, SW_MATE_DISTANCE,
 )
 from asm_common import (
-    SW_MATE_ANGLE, SW_ALIGN_CLOSEST, SW_ALIGN_ANTI,
+    SW_MATE_ANGLE, SW_ALIGN_ALIGNED, SW_ALIGN_CLOSEST, SW_ALIGN_ANTI,
     mate, find_planar_face, find_face_by_normal, cyl, comp_pose, comp_bbox,
 )
 
@@ -153,6 +162,46 @@ try:
             asm, SW_MATE_COINCIDENT, plane(phone, "z", 0.0, -1), plane(hook_r, "z", 4.95, 1),
             align=SW_ALIGN_ANTI, name="M14_PHONE_BOTTOM"))
 
+    print("-- 定位：固定底座 + 消除轴向窜动 --")
+    asm.ClearSelection2(True)
+    if not base.Select2(False, 0):
+        raise RuntimeError("无法选择底座")
+    asm.FixComponent()
+    if not base.IsFixed:
+        raise RuntimeError("底座未固定：拖动时会带着整台支架平移")
+    print("  底座 IsFixed:", base.IsFixed)
+    try_mate("M04_PINB_AXIAL", lambda: mate(
+        asm, SW_MATE_COINCIDENT,
+        plane(pin_b, "x", 9.25, -1), plane(tt, "x", 9.25, 1),
+        align=SW_ALIGN_ANTI, name="M04_PINB_AXIAL"))
+    try_mate("M08_PINT_AXIAL", lambda: mate(
+        asm, SW_MATE_COINCIDENT,
+        plane(pin_t, "x", 13.0, 1), plane(arm, "x", 13.0, 1),
+        align=SW_ALIGN_ALIGNED, name="M08_PINT_AXIAL"))
+    try_mate("M10_PLATE_AXIAL", lambda: mate(
+        asm, SW_MATE_COINCIDENT,
+        plane(plate, "x", 4.0, 1), plane(arm, "x", 4.0, -1),
+        align=SW_ALIGN_ANTI, name="M10_PLATE_AXIAL"))
+    for hook, tag, sign in ((hook_r, "R", 1), (hook_l, "L", -1)):
+        try_mate(f"M12_CLIP_{tag}_AXIAL", (lambda h=hook, t=tag, s=sign: mate(
+            asm, SW_MATE_DISTANCE,
+            plane(h, "x", s * 11.0, s), plane(plate, "x", s * 48.0, s),
+            align=SW_ALIGN_ALIGNED, distance=0.010,
+            name=f"M12_CLIP_{t}_AXIAL")))
+    try_mate("M16_HOOK_SYNC", lambda: mate(
+        asm, SW_MATE_COINCIDENT,
+        plane(hook_r, "z", 4.95, 1), plane(hook_l, "z", 4.95, 1),
+        align=SW_ALIGN_ALIGNED, name="M16_HOOK_SYNC"))
+    if phone is not None:
+        def phone_center():
+            f_phone = get_component_feature(phone, ["Right Plane", "右视基准面"])
+            f_plate = get_component_feature(plate, ["Right Plane", "右视基准面"])
+            return mate(asm, SW_MATE_COINCIDENT,
+                        get_assembly_entity(phone, f_phone),
+                        get_assembly_entity(plate, f_plate),
+                        align=SW_ALIGN_ALIGNED, name="M15_PHONE_AXIAL")
+        try_mate("M15_PHONE_AXIAL", phone_center)
+
     print("-- 配合后位姿 --")
     report("配合后", (("转盘", tt), ("下销", pin_b), ("臂", arm), ("上销", pin_t),
                      ("板", plate), ("钩R", hook_r), ("钩L", hook_l)))
@@ -178,12 +227,11 @@ try:
                       angle=RAD(90.0 + POSE["arm_deg"]), name="T_ARM"))
     temps.append(mate(asm, SW_MATE_ANGLE, e_plate_back, plate_ref,
                       angle=RAD(POSE["plate"][1]), name="T_PLATE"))
-    for tag, hook in (("R", hook_r), ("L", hook_l)):
-        # 有手机时 M14 已把右钩托面锁在手机底面上（转角被定死），再加角度 = 冗余，error 5
-        if tag == "R" and phone is not None:
-            continue
-        temps.append(mate(asm, SW_MATE_ANGLE, hook_ref[tag], hook_other,
-                          angle=RAD(POSE["hook"][1]), name=f"T_HOOK_{tag}"))
+    # 手机在时，M14 已把右钩转角定死，M16 又把左钩同步到右钩，两个钩都不能再加角度；
+    # 无手机（收拢位）时只给右钩加，左钩由 M16 跟随，否则第二个角度配合冗余 error 5。
+    if phone is None:
+        temps.append(mate(asm, SW_MATE_ANGLE, hook_ref["R"], hook_other,
+                          angle=RAD(POSE["hook"][1]), name="T_HOOK_R"))
     print("  临时配合:", [m.Name for m in temps if m])
 
     print("-- 摆姿态后 --")
@@ -213,6 +261,7 @@ try:
         for line in FAILS:
             print("  -", line)
 finally:
-    session.close(asm)
-    # 关掉装配体后，被引用的零件文档仍留在内存里，下次重建零件时 SaveAs 返回错误码 1
-    session.sw.CloseAllDocuments(True)
+    # 关掉装配体后，被引用的零件文档仍留在内存里：既会让下次重建零件时
+    # SaveAs 返回错误码 1，又会占着文件锁让用户打不开交付文件。
+    # finish() = 关全部文档 + 退出本会话启动的实例。
+    session.finish()

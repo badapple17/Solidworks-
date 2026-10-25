@@ -1,0 +1,486 @@
+{
+  "parts": {
+    "XXJSQ-002_旋转套.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 331022.342,
+      "bbox_mm": [
+        -59.0,
+        -59.0,
+        0.0,
+        59.0,
+        59.0,
+        69.5
+      ]
+    },
+    "XXJSQ-003_垫块.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 3561.771,
+      "bbox_mm": [
+        0.0,
+        -16.5,
+        -16.5,
+        7.0,
+        16.5,
+        16.5
+      ]
+    },
+    "XXJSQ-004_固定轴.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 17606.623,
+      "bbox_mm": [
+        0.0,
+        -15.713,
+        -17.193,
+        57.0,
+        19.276,
+        20.0
+      ]
+    },
+    "XXJSQ-006_下盖.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 706241.73,
+      "bbox_mm": [
+        -97.0,
+        -97.0,
+        0.0,
+        97.0,
+        97.0,
+        112.3
+      ]
+    },
+    "XXJSQ-007_传动轴.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 36528.267,
+      "bbox_mm": [
+        0.0,
+        -15.5,
+        -15.5,
+        105.5,
+        15.5,
+        15.5
+      ]
+    },
+    "XXJSQ-008_齿轮.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 16753.252,
+      "bbox_mm": [
+        -20.0,
+        -19.933,
+        0.0,
+        20.0,
+        19.933,
+        25.0
+      ]
+    },
+    "XXJSQ-009_齿圈.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 78738.915,
+      "bbox_mm": [
+        -75.0,
+        -75.0,
+        0.0,
+        75.0,
+        75.0,
+        25.0
+      ]
+    },
+    "XXJSQ-010_上盖.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 691565.965,
+      "bbox_mm": [
+        -97.0,
+        -97.0,
+        0.0,
+        97.0,
+        97.0,
+        101.0
+      ]
+    },
+    "唇形密封圈120X150.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 60486.89,
+      "bbox_mm": [
+        -75.0,
+        -75.0,
+        0.0,
+        75.0,
+        75.0,
+        12.0
+      ]
+    },
+    "盖板_钣金.SLDPRT": {
+      "bodies": 1,
+      "volume_mm3": 3584.541,
+      "bbox_mm": [
+        -28.0,
+        0.0,
+        -0.0,
+        26.0,
+        18.0,
+        120.0
+      ]
+    }
+  },
+  "assemblies": {
+    "compact": {
+      "file": "XXJSQ_减速器.SLDASM",
+      "components": 9,
+      "bbox_mm": [
+        -97.0,
+        -97.0,
+        0.0,
+        97.0,
+        97.0,
+        213.3
+      ],
+      "interference": {
+        "status": "warn",
+        "interference_count": 12,
+        "items": [
+          {
+            "index": 0,
+            "components": [
+              "唇形密封圈120X150-1",
+              "XXJSQ-009_齿圈-1"
+            ],
+            "volume_mm3": 1608.495
+          },
+          {
+            "index": 1,
+            "components": [
+              "XXJSQ-010_上盖-1",
+              "XXJSQ-002_旋转套-1"
+            ],
+            "volume_mm3": 659.415
+          },
+          {
+            "index": 2,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-008_齿轮-1"
+            ],
+            "volume_mm3": 79.692
+          },
+          {
+            "index": 3,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-008_齿轮-1"
+            ],
+            "volume_mm3": 69.127
+          },
+          {
+            "index": 4,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-008_齿轮-1"
+            ],
+            "volume_mm3": 69.127
+          },
+          {
+            "index": 5,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-008_齿轮-1"
+            ],
+            "volume_mm3": 37.972
+          },
+          {
+            "index": 6,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-008_齿轮-1"
+            ],
+            "volume_mm3": 37.972
+          },
+          {
+            "index": 7,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-004_固定轴-1"
+            ],
+            "volume_mm3": 33.611
+          },
+          {
+            "index": 8,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-004_固定轴-1"
+            ],
+            "volume_mm3": 24.291
+          },
+          {
+            "index": 9,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-004_固定轴-1"
+            ],
+            "volume_mm3": 24.291
+          },
+          {
+            "index": 10,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-008_齿轮-1"
+            ],
+            "volume_mm3": 0.548
+          },
+          {
+            "index": 11,
+            "components": [
+              "XXJSQ-009_齿圈-1",
+              "XXJSQ-008_齿轮-1"
+            ],
+            "volume_mm3": 0.548
+          }
+        ],
+        "manual_review_required": true
+      }
+    },
+    "exploded": {
+      "file": "XXJSQ_减速器_爆炸图.SLDASM",
+      "components": 9,
+      "bbox_mm": [
+        -97.0,
+        -97.0,
+        -80.0,
+        97.0,
+        97.0,
+        501.0
+      ]
+    },
+    "transparent": {
+      "file": "XXJSQ_减速器_透明涂色.SLDASM",
+      "components": 9,
+      "bbox_mm": [
+        -97.0,
+        -97.0,
+        0.0,
+        97.0,
+        97.0,
+        213.3
+      ],
+      "colours": {
+        "XXJSQ-006_下盖-1": {
+          "rgb": [
+            0.698,
+            0.749,
+            0.82
+          ],
+          "transparency": 0.82
+        },
+        "XXJSQ-010_上盖-1": {
+          "rgb": [
+            0.82,
+            0.776,
+            0.71
+          ],
+          "transparency": 0.82
+        },
+        "XXJSQ-007_传动轴-1": {
+          "rgb": [
+            0.176,
+            0.639,
+            0.337
+          ],
+          "transparency": 0.0
+        },
+        "XXJSQ-004_固定轴-1": {
+          "rgb": [
+            0.549,
+            0.337,
+            0.8
+          ],
+          "transparency": 0.0
+        },
+        "XXJSQ-003_垫块-1": {
+          "rgb": [
+            0.118,
+            0.698,
+            0.749
+          ],
+          "transparency": 0.0
+        },
+        "XXJSQ-002_旋转套-1": {
+          "rgb": [
+            0.2,
+            0.518,
+            0.898
+          ],
+          "transparency": 0.35
+        },
+        "XXJSQ-009_齿圈-1": {
+          "rgb": [
+            0.949,
+            0.718,
+            0.149
+          ],
+          "transparency": 0.1
+        },
+        "唇形密封圈120X150-1": {
+          "rgb": [
+            0.098,
+            0.098,
+            0.098
+          ],
+          "transparency": 0.4
+        },
+        "XXJSQ-008_齿轮-1": {
+          "rgb": [
+            0.898,
+            0.298,
+            0.157
+          ],
+          "transparency": 0.0
+        }
+      }
+    }
+  },
+  "checks": {
+    "all_parts_single_body": true,
+    "compact_interference_ok": true,
+    "compact_interference_documented": {
+      "documented_count": 12,
+      "unexpected_count": 0,
+      "over_cap_count": 0,
+      "documented": [
+        {
+          "index": 0,
+          "components": [
+            "唇形密封圈120X150-1",
+            "XXJSQ-009_齿圈-1"
+          ],
+          "volume_mm3": 1608.495,
+          "reason": "唇形密封圈过盈压在齿圈外圆：密封唇需要径向过盈（实测 1608.5）",
+          "cap_mm3": 1700
+        },
+        {
+          "index": 1,
+          "components": [
+            "XXJSQ-010_上盖-1",
+            "XXJSQ-002_旋转套-1"
+          ],
+          "volume_mm3": 659.415,
+          "reason": "上盖中心凸台伸入旋转套实心端面：试卷图两件长度冲突（实测 659.4）",
+          "cap_mm3": 700
+        },
+        {
+          "index": 2,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-008_齿轮-1"
+          ],
+          "volume_mm3": 79.692,
+          "reason": "零侧隙内啮合，齿面数值重叠；量产需加 0.06 mm 侧隙（实测 69.7~79.7）",
+          "cap_mm3": 100
+        },
+        {
+          "index": 3,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-008_齿轮-1"
+          ],
+          "volume_mm3": 69.127,
+          "reason": "零侧隙内啮合，齿面数值重叠；量产需加 0.06 mm 侧隙（实测 69.7~79.7）",
+          "cap_mm3": 100
+        },
+        {
+          "index": 4,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-008_齿轮-1"
+          ],
+          "volume_mm3": 69.127,
+          "reason": "零侧隙内啮合，齿面数值重叠；量产需加 0.06 mm 侧隙（实测 69.7~79.7）",
+          "cap_mm3": 100
+        },
+        {
+          "index": 5,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-008_齿轮-1"
+          ],
+          "volume_mm3": 37.972,
+          "reason": "零侧隙内啮合，齿面数值重叠；量产需加 0.06 mm 侧隙（实测 69.7~79.7）",
+          "cap_mm3": 100
+        },
+        {
+          "index": 6,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-008_齿轮-1"
+          ],
+          "volume_mm3": 37.972,
+          "reason": "零侧隙内啮合，齿面数值重叠；量产需加 0.06 mm 侧隙（实测 69.7~79.7）",
+          "cap_mm3": 100
+        },
+        {
+          "index": 7,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-004_固定轴-1"
+          ],
+          "volume_mm3": 33.611,
+          "reason": "固定轴头 R20 超出齿圈齿顶圆 2.5 mm：试卷图尺寸冲突（实测 24.3~33.6）",
+          "cap_mm3": 40
+        },
+        {
+          "index": 8,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-004_固定轴-1"
+          ],
+          "volume_mm3": 24.291,
+          "reason": "固定轴头 R20 超出齿圈齿顶圆 2.5 mm：试卷图尺寸冲突（实测 24.3~33.6）",
+          "cap_mm3": 40
+        },
+        {
+          "index": 9,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-004_固定轴-1"
+          ],
+          "volume_mm3": 24.291,
+          "reason": "固定轴头 R20 超出齿圈齿顶圆 2.5 mm：试卷图尺寸冲突（实测 24.3~33.6）",
+          "cap_mm3": 40
+        },
+        {
+          "index": 10,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-008_齿轮-1"
+          ],
+          "volume_mm3": 0.548,
+          "reason": "零侧隙内啮合，齿面数值重叠；量产需加 0.06 mm 侧隙（实测 69.7~79.7）",
+          "cap_mm3": 100
+        },
+        {
+          "index": 11,
+          "components": [
+            "XXJSQ-009_齿圈-1",
+            "XXJSQ-008_齿轮-1"
+          ],
+          "volume_mm3": 0.548,
+          "reason": "零侧隙内啮合，齿面数值重叠；量产需加 0.06 mm 侧隙（实测 69.7~79.7）",
+          "cap_mm3": 100
+        }
+      ],
+      "unexpected": [],
+      "over_cap": []
+    },
+    "all_three_assemblies_9_components": true,
+    "transparent_colours": {
+      "上盖": 0.82,
+      "下盖": 0.82,
+      "旋转套": 0.35,
+      "齿圈": 0.1
+    },
+    "transparent_ok": true,
+    "source_untouched": {
+      "compact_sha256": "7f20f41fff8823181aabd739080beebc8c7e770864d9741fd200692e585c88c9",
+      "transparent_sha256": "c76453f5cd80e1dec533b5e3fa5b3cd27f173b57df2cbc935f85a25b5246a9c9",
+      "different_files": true
+    }
+  },
+  "status": "pass"
+}

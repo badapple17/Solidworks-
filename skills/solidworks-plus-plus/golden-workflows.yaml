@@ -119,13 +119,37 @@
         "零件清单",
         "装配基准",
         "配合关系",
-        "允许自由度"
+        "允许自由度",
+        "期望运动链（哪些件联动、绕哪根轴）"
       ],
       "required_artifacts": [
         "sldasm",
         "mate_evidence",
         "pose_evidence",
         "interference_report",
+        "motion_evidence",
+        "preview",
+        "review_report"
+      ]
+    },
+    {
+      "id": "assembly_appearance",
+      "name": "装配体透明涂色与内部关系可视化",
+      "capabilities": [
+        "assembly_and_mates",
+        "assembly_appearance",
+        "export_delivery"
+      ],
+      "required_inputs": [
+        "装配体文件",
+        "原文件是否保留",
+        "需要突出/淡化的零件",
+        "需要的视图方向"
+      ],
+      "required_artifacts": [
+        "sldasm",
+        "appearance_evidence",
+        "source_unchanged_evidence",
         "preview",
         "review_report"
       ]

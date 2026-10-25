@@ -25,6 +25,52 @@ sw = win32com.client.Dispatch("SldWorks.Application.32")  # SW 2024
 **解决**: 先手动启动 SolidWorks，或使用 `Dispatch` 启动新实例；工具脚本统一走
 `sw_connect.connect_solidworks()`，不要自己写 `GetActiveObject`
 
+**补充（2026-10-25 实测）**：用户正常双击启动的 SolidWorks **3 秒内**就能被
+`GetActiveObject` 找到；只有自动化会话遗留的实例才长期不在 ROT 里。所以
+`GetActiveObject` 失败 + `tasklist` 里仍有 `SLDWORKS.exe` = **残留实例**，
+按下一节清场。
+
+### 交付后用户打不开文件，要重启电脑
+
+**症状**：脚本跑完、文件明明已保存，用户双击交付的 `.SLDPRT/.SLDASM` 打不开、
+提示只读/被占用；任务管理器里还挂着 `SLDWORKS.exe`；重启 Windows 后一切正常。
+
+**原因**：脚本只 `CloseDoc(装配体)`，**被引用的零件文档仍留在内存里占着文件锁**；
+再加上脚本启动的实例没有退出，它又常常不在 ROT 里，Windows 无法把双击的文件
+交给它，新的 SolidWorks 也起不来。两者叠加就是“只能重启”。
+
+**解决**（已内置，正常脚本无需额外代码）：
+
+1. `connect_solidworks()` 启动实例时自动登记，并挂 `atexit` 钩子；
+   进程退出时 `release_solidworks()` 会关闭**全部**文档（含依赖零件）并退出该实例。
+2. `SolidWorksSession.finish()` 做同样的事，显式写在 `finally` 里更清楚：
+
+   ```python
+   session = SolidWorksSession()
+   try:
+       ...
+   finally:
+       session.finish()          # 关文档 + 退出本会话启动的实例
+   ```
+
+3. 只 `CloseDoc` 是不够的；`CloseAllDocuments(True)` 会保存未保存修改，
+   交付场景应使用 `finish(save=False)`。
+4. 想保留实例窗口供人工检查：设环境变量 `SW_KEEP_ALIVE=1`，
+   文档照样关闭、文件锁照样释放，只是不退进程。
+5. 异常中断（脚本被杀、PowerShell 关窗）留下的实例，手工清场：
+
+   ```bash
+   py -3.12 "<skill>\scripts\sw_release.py"              # 只报告进程和打开的文档
+   py -3.12 "<skill>\scripts\sw_release.py" --close-docs # 只关文档
+   py -3.12 "<skill>\scripts\sw_release.py" --quit       # 关文档并退出（丢弃未保存修改）
+   ```
+
+**验收**：交付后 `tasklist /FI "IMAGENAME eq SLDWORKS.exe"` 里没有你启动的实例，
+且另开一次 SolidWorks 能直接打开交付文件。
+
+**注意**：`Dispatch` 会复用已在运行的实例。若用户自己开着 SolidWorks，
+`GetActiveObject` 会成功、`started_by_cad_studio=False`，脚本**不会**退出它。
+
 ### Python 32/64 位不匹配
 
 **原因**: Python 位数必须与 SolidWorks 一致（通常为 64 位）
@@ -52,6 +98,35 @@ while feature:
     print(get_com_member(feature, "Name"), get_com_member(feature, "GetTypeName2"))
     feature = get_com_member(feature, "GetNextFeature")
 ```
+
+### 反向症状：`'bool'/'int'/'str' object is not callable`
+
+场景：按官方文档把成员当**方法**调用，报：
+
+```text
+TypeError: 'bool' object is not callable
+TypeError: 'int' object is not callable
+```
+
+典型成员（SW2023 SP0.1 实测）：`EditRebuild3`（bool）、`GetSuppression`（int）、
+`IsSuppressed`（bool）、`FirstFeature`（返回对象）、`GetAnnotation`、`GetTextFormat`、
+`ViewDisplayShaded`、`GetDocumentCount`。
+
+原因：同一个成员在不同 SolidWorks 版本/类型库下可能是属性也可能是方法；本机把这些
+无参成员暴露成**属性**，所以 `obj.EditRebuild3()` 等于对返回值再加括号。
+
+稳定写法：
+
+```python
+from sw_connect import get_com_member
+
+get_com_member(model, "EditRebuild3")            # 两种形态都能跑
+value = get_com_member(component, "GetSuppression")
+```
+
+判别口诀：**报“找不到成员”和报“not callable”是同一个问题的两面，都改用
+`get_com_member()`**；不要为了绕开它去猜签名或改成 `getattr(...)` 直接调用。
+脚本里若已经写了裸调用，用 `grep -n "()" scripts/` 逐一核对无参成员。
 
 ### Motion Study 成员“找不到成员”
 
@@ -519,7 +594,10 @@ model = session.new_part()
 **仍留在会话里**（`sw.GetDocuments` 能列出全部 8 个零件）。下一轮重建其中某个零件时 SaveAs 返回
 错误码 1，文件 mtime 不变。回归 `tests\solidworks_assembly_align_regression.py` 的
 `open_after_close` 字段记录了这一点。处理：关装配体后对本项目的零件逐个 `sw.CloseDoc(<文件名>)`；
-整个会话都是本项目自己的文档时才用 `CloseAllDocuments(True)`。
+整个会话都是本项目自己的文档时才用 `CloseAllDocuments(True)`。**注意
+`CloseAllDocuments(True)` 会先保存所有已修改文档**——它会把当前内存状态（例如
+“全部组件被压缩”“错误外观”）一并写回文件；只想清理会话时用 `CloseAllDocuments(False)`，
+需要保留的文档逐份 `Save3`。
 
 **保存失败不能只看打印**：`save_document()` 失败时只打印“保存失败”并返回 `False`，脚本若接着
 打印“已保存”，日志会自相矛盾。凡是交付文件一律 `assert save_document(...)` /

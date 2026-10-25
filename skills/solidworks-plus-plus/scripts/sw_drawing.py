@@ -832,10 +832,10 @@ def remove_duplicate_dimensions(drawing_model) -> dict:
     }
 
 
-def arrange_dimension_positions(drawing_model, *, view_boxes=None, margin_m=0.012,
-                                offset_m=0.010, column_gap_m=0.012,
-                                row_gap_m=0.009) -> dict:
-    """@brief 把插入的模型尺寸移到各自视图外侧，避免越框、压视图和互相压字。
+def _arrange_dimension_positions_legacy(drawing_model, *, view_boxes=None, margin_m=0.012,
+                                        offset_m=0.010, column_gap_m=0.012,
+                                        row_gap_m=0.009) -> dict:
+    """@brief 旧版两列堆叠，仅在新版 GB 排布无法读取视图时兜底。
 
     规则（与图幅无关）：视图中心在纸面左半 → 放视图左侧，否则放右侧；
     同一视图的尺寸按列排布（默认两列，间距 12 mm），多行时上下居中。
@@ -965,6 +965,30 @@ def arrange_dimension_positions(drawing_model, *, view_boxes=None, margin_m=0.01
     }
 
 
+def arrange_dimension_positions(drawing_model, *, view_boxes=None, **kwargs) -> dict:
+    """@brief 按 GB 习惯排布尺寸：就近分侧、按跨度分层、直径放射引出。
+
+    实现见 sw_dimension_layout.py。只有新版连视图都读不到（status=blocked）
+    时才退回旧版两列堆叠，并在报告里写明原因；排布结果 warn 不回退，
+    因为旧版只会更差。
+    """
+    try:
+        from .sw_dimension_layout import arrange_dimension_positions as _gb_layout
+    except ImportError:
+        from sw_dimension_layout import arrange_dimension_positions as _gb_layout
+    try:
+        result = _gb_layout(drawing_model, view_boxes=view_boxes, **kwargs)
+    except Exception as exc:
+        result = {"status": "blocked", "error_code": "GB_LAYOUT_FAILED",
+                  "error": str(exc), "views": []}
+    if result.get("status") != "blocked":
+        return result
+    legacy = _arrange_dimension_positions_legacy(drawing_model, view_boxes=view_boxes)
+    legacy["fallback"] = {"reason": result.get("error_code"),
+                          "detail": result.get("error")}
+    return legacy
+
+
 def insert_dimensions(drawing_model, view=None):
     """
     自动标注尺寸（模型项目）
@@ -1037,30 +1061,98 @@ def insert_dimensions(drawing_model, view=None):
     return False
 
 
-def add_note(drawing_model, x, y, text):
+def add_note(drawing_model, x, y, text, char_height=None):
     """
-    添加注释
+    添加注释，并**真正**放到 (x, y)。
 
     参数:
-        x, y: 注释位置（米）
-        text: 注释文本
+        x, y: 注释左下角位置（米，图纸坐标）。
+        text: 注释文本；用 "\\n" 换行。
+        char_height: 可选字高（米），例如 0.0032。
+
+    实测（SW2023 SP0.1）：
+        ``InsertNote(text)`` 不接受坐标，所有注释会叠在同一点；
+        必须 ``note.GetAnnotation.SetPosition(x, y, 0)``。
+        ``GetAnnotation`` / ``GetTextFormat`` 在本机是**属性**，不能加括号。
     """
-    return drawing_model.InsertNote(text)
+    note = drawing_model.InsertNote(text)
+    if note is None:
+        return None
+    try:
+        annotation = get_com_member(note, "GetAnnotation")
+        get_com_member(annotation, "SetPosition", float(x), float(y), 0.0)
+    except Exception:
+        pass
+    if char_height:
+        try:
+            text_format = get_com_member(note, "GetTextFormat")
+            text_format.CharHeight = float(char_height)
+        except Exception:
+            pass
+    return note
 
 
-def insert_bom_table(drawing_model, template_path, x, y, bom_type=1, config_name=""):
+def insert_bom_table(view, template_path, x, y, bom_type=2, config_name="",
+                     use_anchor_point=False, anchor_type=1, hidden=False,
+                     indented_numbering=1, detailed_cut_list=False):
     """
-    插入 BOM 表
+    插入 BOM（明细栏）表——**必须对 IView 调用，不能对工程图文档调用**。
 
     参数:
-        template_path: BOM 模板路径（.sldbomtbt）
-        x, y: 表格放置位置（米）
-        bom_type: 1=顶层, 2=仅零件, 3=缩进
-        config_name: 配置名称
+        view: 视图对象（IView），通常用主视图；BOM 的数据源由视图决定。
+        template_path: BOM 模板路径（.sldbomtbt），
+            中文版 GB 模板示例：
+            ``<SolidWorks>/lang/chinese-simplified/gb-bom-material.sldbomtbt``
+        x, y: 表格锚点位置（米）。
+        bom_type: **swBomType_e：1=PartsOnly（仅零件）, 2=TopLevelOnly（顶层）,
+            3=Indented（缩进）。不是 1/2/3 顺序递增。** 默认 2（顶层）。
+        config_name: 配置名称，留空=默认。
+        use_anchor_point: 是否使用锚点位置。
+        anchor_type: swBOMConfigurationAnchorType_e：1=左上 2=右上 3=左下 4=右下。
+        hidden: True=插入后**隐藏这张表**（不是“是否包含隐藏组件”）。
+        indented_numbering: swNumberingType_e：0=None 1=Detailed 2=Flat。
+        detailed_cut_list: 是否显示明细切割清单（仅 bom_type=3 有效）。
+
+    实测（SW2023 SP0.1）：
+        ``InsertBomTable4`` 是 **IView 上的 10 参数方法**，
+        模板路径在第 **7** 位：
+        ``InsertBomTable4(UseAnchorPoint, X, Y, AnchorType, BomType,
+        Configuration, TableTemplate, Hidden, IndentedNumberingType, DetailedCutList)``。
+        对 drawing 文档调用报“找不到成员”，按旧版 7 参数调用报“类型不匹配”。
+        枚举值取自本机 ``comtypes.gen.SwConst``；帮助页
+        ``IView~InsertBomTable4`` 亦确认参数顺序。
     """
-    return drawing_model.InsertBomTable4(
-        template_path, x, y, bom_type, config_name, "", False
+    return view.InsertBomTable4(
+        bool(use_anchor_point), float(x), float(y), int(anchor_type),
+        int(bom_type), config_name, template_path, bool(hidden),
+        int(indented_numbering), bool(detailed_cut_list),
     )
+
+
+def settle_drawing_views(drawing_model, pause=2.0, zoom=True):
+    """
+    导出前稳定视图：重建 + 等待 + 缩放到合适大小。
+
+    实测（SW2023 SP0.1）：视图刚创建就导出 PDF 会**丢视图**（4 个视图只出 1 个）。
+    正确顺序：EditRebuild3 → 等待 1~2 s → ViewZoomtofit2 → 保存 → 导出 PDF。
+    ``EditRebuild3`` 在本机是属性式成员，不能加括号。
+    """
+    import time
+
+    try:
+        get_com_member(drawing_model, "EditRebuild3")
+    except Exception:
+        pass
+    if pause:
+        time.sleep(float(pause))
+    if zoom:
+        try:
+            get_com_member(drawing_model, "ViewZoomtofit2")
+        except Exception:
+            pass
+        if pause:
+            time.sleep(min(float(pause), 1.0))
+    return True
 
 
 def set_sheet_format(drawing_model, format_path):

@@ -16,6 +16,12 @@
 - `session.sw.RevisionNumber` 是属性，不是方法。
 - 长参数方法（`FeatureExtrusion3`、`FeatureCut4`、`SetupSheet6`）不要凭记忆改参数顺序；以 `scripts/` 里的封装为准。`FeatureExtrusion3` 与 `FeatureCut4` 的第 3 个参数都叫 Dir，但 SW2023 中含义相反（见第 4 节）。
 - by-ref 参数用 `VARIANT(pythoncom.VT_BYREF | pythoncom.VT_I4, 0)` 包装。
+- **属性式伪成员的反向症状**：文档里是方法的成员（`EditRebuild3`、`GetSuppression`、
+  `IsSuppressed`、`FirstFeature`、`GetAnnotation`、`GetTextFormat`、`ViewDisplayShaded`、
+  `GetDocumentCount`）在本机被暴露成属性，加括号会报
+  `'bool'/'int'/'str' object is not callable`。两种症状（“找不到成员”与
+  “not callable”）是同一件事的两面：**一律走 `get_com_member(obj, name, *args)`**，
+  它先试调用、失败再读属性。
 - `visible=False` 在本机会导致打开第二个文档时 `RPC 服务器不可用`。**本机固定用可见模式**（`SolidWorksSession()` 默认可见，命令行加 `--visible`）。
 - 每个特征调用后检查返回值；`None` 表示失败，不要继续叠加。
 
@@ -121,23 +127,64 @@ SW2023 实测（不是教科书方向）：
   的规划视图框，不要用它算偏移，否则容易顶到 PDF 检查器 25 mm 的悬浮阈值。
 - 同一视图两列尺寸若同高，水平引出线会沿同一条中心线重叠（机器检查发现不了）；
   两列要错开半行距（约 4.5 mm）。
+- **`dimension_placement.status == "pass"` 不等于排版合格**：它只说明每个尺寸都找到了
+  可行位置。同层尺寸线共线、极小尺寸被拉长线、同心直径交叉都不在状态里，必须按
+  `dimension-layout.md` §7.2 目视。
+- 自动排版把线性尺寸按 `span` 升序占层（小内大外），同层用 `_band_free` 同时避让
+  尺寸线区间和数字区间。不要退回旧的“左右两列均分”逻辑，实测会出现共线尺寸线。
+- 小尺寸数字要用 `_clear_of_levels` 跳过**所有**挡路界线；只挪出自己的两条界线不够，
+  薄板叠尺寸时数字会压在板边线上。
+- `GetText(0)` 对模型尺寸为空，文字宽按字符估算；带小数点要补一个尾零宽度，
+  小尺寸移位阈值用 `span + 2 < text_len`，否则 4.5 这类尺寸不会移位。
+- SW2023 两个同心直径尺寸必在圆心交叉；`DisplayAsLinear=True`、`SetLeader3` 实测不可用。
+  不要为消除交叉反复试 API，接受限制并在交付说明标注；人工出图改用单箭头引线。
 - `IDisplayDimension.GetText(0)` 对导入尺寸返回空串，PDF 里却有数值；不能据此判断
   尺寸无文字，也不能拿它当尺寸值证据。
 - 出图后必须看 PDF/PNG 预览，不能只看 `view_count`。
 - 标题栏字段若未链接自定义属性，COM 不会自动填写；需要手工补或改图纸格式。
+- **`InsertNote(text)` 只接文本，不接坐标**：所有注释默认叠在图纸原点/标题栏上。
+  必须 `note.GetAnnotation.SetPosition(x, y, 0)`（米）；字高走
+  `note.GetTextFormat.CharHeight`，同样是米。用 `sw_drawing.add_note()`。
+- **BOM 用 `IView.InsertBomTable4`（10 参数），不是 `IDrawingDoc` 的 7 参数版**；
+  模板路径在第 7 位。`BomType` 不是顺序枚举：`PartsOnly=1`、`TopLevelOnly=2`、
+  `Indented=3`（`SwConst` 实证）。`Hidden` 是“隐藏这张表”，不是“包含隐藏组件”。
+- **导出 PDF 会随机丢视图**：必须 重建（`EditRebuild3`）→ sleep → `ViewZoomtofit2`
+  → 保存 → 导出，**再重复一次导出覆盖**。判据看文件大小，不看 `SaveAs` 返回值。
+- **GB 明细栏的属性链接列可能不刷新**：零件已写入「图样代号/图样名称」（含配置级、
+  回读确认），SW2023 仍显示模板字面量「图样代号」「图样名称」。配置级/文档级属性、
+  `CustomPropertyView` 指定、重存重建都试过无效；行数据（序号/数量/材料/单重/总重）
+  正常。交付说明要逐列标注占位符，不要说“明细栏已完成”。
 
 ## 7. 装配与运动
 
 - `add_component()` 在中文版可能走 `AddComponent5`、静默打开零件、切回装配体的回退路径；不要自己写简化版。
+- **`AddComponent5` 插入的第一个件不会自动固定**：必须 `Select2` + `IAssemblyDoc.FixComponent()`，
+  并回读 `IComponent2.IsFixed`（属性，不是方法）。不固定时拖任何零件整台装配都会平移。
+- **别用“推一下看动不动”判断固定**：`SetTransformAndSolve2` 连固定件也能推动，
+  `IsFixed` 才是真值。
+- **同心配合不约束轴向**：销在孔里仍能沿轴滑。每个铰链要补一条**平行于转轴**的
+  平面定位（销头内侧面/销端面 ↔ 座耳/臂外侧面）；与转轴垂直的面才会 error 5。
+- `Transform2.ArrayData` 是 16 位：9 位旋转（**列主序**）+ 3 位平移（米）+ scale + 0。
+  赋 list/tuple 会被**静默丢弃**，必须 `VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, data)`。
+  SW2023 的 `SetTransformAndSolve2` 只应用平移，旋转仍要走临时角度配合。
 - 先解析组件对象，再做 Mate；不要用屏幕坐标点选。
 - 旋转件用同心 Mate 且 `lock_rotation=False`，不要用三个基准面锁死。
 - Motion Study 的 `CreateMotionStudy` / `Activate` / `Calculate` 在 pywin32 下可能表现为属性；用 `sw_motion.motion_member()` 兼容。
 - 只看到时间轴或 `Calculate=True` 不算通过；要检查马达数量、结果存在、`results_out_of_date=False`。
+- **装配体可能以“全组件压缩”状态存盘**：文件能打开、组件列表齐全，但 `GetBox(0)`
+  全 0、`SaveBMP` 只出背景、工程图视图为空。判别与修复见 `assembly.md`；
+  截图/测量前先 `assert_assembly_has_geometry()`，别先怀疑导出代码。
+- 组件透明度是 `SetMaterialPropertyValues2` 九位数组的**第 8 位**，不是独立 API；
+  半透明件仍会画出全部内部边线，边缘密的零件保持实色。
 
 ## 8. 外观与导入
 
 - 材质数组必须用 `SAFEARRAY(double)` 编组；不要把 Python `list` 直接传给 COM。
 - 设置颜色后回读 RGB 验证，不能只看 setter 返回值。
+- **透明涂色版先复制装配文件再上色**；原件绝不上色。`shutil.copy2` → 打开副本 →
+  `resolve_all_components` → `apply_component_style_map` → 保存。
+- 配色表按**零件名**（去掉 `-N` 实例后缀），每个零件都要有规则；漏掉的会留默认灰。
+  用 `apply_component_style_map(..., strict=True)` 让漏配/回读失败直接报错。
 - OBJ/STL 导入用 `sw_import_mesh_reference.py` 的 `LoadFile4(path, "r", create_empty_dispatch_variant(), errors)`；不要用 `OpenDoc6()`，不要把 `None` 传给 `LoadFile4()`。
 - 网格导入件不是参数化实体；需要可编辑结构时基于参考重新建模。
 
@@ -151,6 +198,13 @@ SW2023 实测（不是教科书方向）：
   标 pass 的项必须有证据路径或回读数值。
 - **PDF 与报告不一致时以 PDF 为准**：报告说 4 视图而 PDF 只有 3 个框，先查结构采集
   和布局，再决定信谁；不许只挑对自己有利的数字。
+- **`CloseAllDocuments(True)` 会保存已修改的文档**：收尾时它可能把“全部压缩”“错误
+  外观”这类内存状态写回文件。脚本结束用 `CloseAllDocuments(False)`，需要保存的文档
+  逐份显式 `Save3`。
+- **多实体件要同时看实体数与总体积**：用多段折线近似圆弧去切除时，可能切出
+  零体积的“碎片实体”（002 实测：1 个实体变 61 个，总体积仍正确）。`GetBodies2(0, False)`
+  返回实体和片体，逐个打印 `GetMassProperties(1000.0)[3]`；零体积碎片通常说明
+  草图用了折线而不是真圆弧，能用真圆弧就不要折线近似。
 - **尺寸文字没有尺寸线**（`DIM_NO_LEADER`）是图纸缺陷，不是“标注成功”：
   `dimension_count > 0` 只说明有尺寸对象，不说明画对了。交付前跑
   `check_drawing_pdf.py`。

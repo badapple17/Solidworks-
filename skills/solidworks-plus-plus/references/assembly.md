@@ -41,9 +41,9 @@ py -3.12 tests\solidworks_add_component_regression.py --output-dir <workdir>\sol
 6. 轴/孔用同心 Mate，`lock_rotation=False`，保留绕轴旋转自由度。
 7. 齿轮联动用 Gear Mate；选择齿轮轴线、孔圆柱面、圆柱面或轴实体，按齿数传入比例。
 8. 上盖铰链可用同心 Mate 加一个平面重合/距离 Mate 表达一条旋转自由度；若需要 Motion 分析，优先在 GUI 中用官方 Hinge Mate 或用更高阶 MateFeatureData API 生成。
-   **销类零件例外**：销已和两侧孔同心时再加轴向重合会被拒（error_status=5），销只加同心（见「冗余配合」）。
+   **销类零件也要轴向定位**：同心只约束径向，销仍能沿轴窜；选“销头内侧面/销端面 ↔ 座耳/臂外侧面”再加一条重合或距离配合，实测不冗余（见「可动装配：自由度必须逐件消干净」）。
 9. 创建后遍历 MateGroup 子特征，确认真实 Mate 写入特征树；预览动画只说明脚本能驱动，不等同于可在软件里拖动。
-10. 最后运行 `sw_review.py` 导出多视角预览图，并在 SolidWorks 中手动拖动一个自由件验证运动。
+10. 最后运行 `sw_review.py` 导出多视角预览图，并用自由度探针 + 角度驱动验证运动链（`a04_motion_check.py` 模式），再在 SolidWorks 里手动拖一个自由件复核。
 
 多姿态可动装配体（展开/收拢等）的已验证脚本顺序（2026-10-25，SW2023 SP0.1，8 零件折叠支架）：
 
@@ -169,7 +169,7 @@ SW2023 SP0.1 同样验证了 0/1/3/5/6/10/22；`SW_MATE_ANGLE = 6` 已在 `sw_as
 
 `AddMate5` 的 `error_status=5` = 配合被拒（与已有约束冲突或冗余）。实测触发：
 
-1. 销已与两侧孔同心，再加“销头内侧面 ↔ 耳板外侧面”重合 → 5。销只留同心，轴向靠初始放置。
+1. 销已与两侧孔同心，再加**与转轴垂直**的面重合 → 5。轴向定位面必须**平行于转轴**（销头内侧面、销端面 ↔ 座耳/臂外侧面）；选对后不冗余，实测 7 条轴向配合一次加成功。选错面才是 error 5。
 2. 零件已被上一个配合翻转后，再加平面重合/角度配合 → 5（根因是翻转，不是这个配合）。
 3. 转角已被其他配合锁死再加角度：手机背面贴背板、底面贴右托钩胶垫后，右托钩转角已定，
    再给它加角度配合 → 5。只给仍然自由的那个件（左托钩）加。
@@ -200,6 +200,125 @@ asm.ForceRebuild3(False)          # 重建后位姿保留，铰链恢复可拖�
 
 选参考面的规则：目标是“共线/平行”就用平行面 + 0°；目标是“倾斜 α”就用初始垂直的面 + 90°±α
 （α 离 0 远，镜像解在另一侧）。摆完读包围盒核对：共线时总长应变长，折回时不变或变短。
+
+## 可动装配：自由度必须逐件消干净（2026-10-25 SW2023 实测）
+
+“能拖动”分两种：**该动的能动**，与**不该动的真的不动**。只做同心 + 一个平面重合，
+装配看着是对的，拖动时才会暴露漏掉的平动自由度。折叠支架实测：拖动任一零件整台支架平移；
+下销、上销、背板、双钩、手机各能沿铰链轴窜 10 mm。
+
+### 1. 第一个件不会自动固定
+
+`AddComponent5` 插入的第一个零件**仍是欠定义**（与 GUI 默认固定的行为不同）。
+必须显式固定，否则拖任何零件都会带着整台装配平移：
+
+```python
+asm.ClearSelection2(True)
+if not base.Select2(False, 0):
+    raise RuntimeError("无法选择底座")
+asm.FixComponent()                 # IAssemblyDoc.FixComponent
+if not base.IsFixed:               # IComponent2.IsFixed 是属性（bool），不是方法
+    raise RuntimeError("底座未固定")
+```
+
+不要用“推一下看动不动”判断固定：`SetTransformAndSolve2` 连固定件也能推动。
+`IsFixed` 才是真值。
+
+### 2. 铰链 = 转动 + 沿轴锁死
+
+同心配合只约束径向；销在孔里仍能沿轴向滑。每个铰链再补一个**轴向定位配合**，
+选“销头内侧面/端面 ↔ 座耳外侧面/臂侧面”这类**平行于转轴**的平面：
+
+| 铰链 | 定位面 | 配合 |
+|---|---|---|
+| 下销 ↔ 转盘/臂 | 销头内侧面 ↔ 座耳外侧面 | 重合 |
+| 上销 ↔ 臂/背板 | 销端面 ↔ 臂外侧面 | 重合 |
+| 背板 ↔ 上销 | 凸舌侧面 ↔ 臂侧面 | 重合 |
+| 左/右托钩 ↔ 卷边 | 钩侧面 ↔ 板侧面 | 距离（各 10 mm） |
+| 双钩同步 | 两钩胶垫顶面 | 重合 |
+
+规则：
+
+- 面用 `find_planar_face(comp, "x", <局部坐标米>, sign=±1)` 按坐标取，不用名字/索引；
+- 同一对零件只加一条，方向按实际贴合选 ALIGNED / ANTI；
+- 对称件（左右钩）各一条距离配合 + 一条同步配合；摆姿态只驱动一侧，另一侧跟随；
+- 加完必须用自由度探针复核，不能只看“配合数增加了”。
+
+### 3. 自由度探针：强推 10 mm，看求解器拉不拉得回来
+
+对每个**非固定**零件，沿 X/Y/Z 各用 `SetTransformAndSolve2` 强推 10 mm，
+`ForceRebuild3(False)` 后读实际位移。合格的铰链件三向位移都应是 0；
+出现约 10 mm 就是漏了定位配合。
+
+```python
+import pythoncom, win32com.client
+from sw_assembly import get_component_pose
+
+def nudge(asm, comp, d_mm, axis):
+    data = list(comp.Transform2.ArrayData)
+    data[9 + axis] += d_mm / 1000.0
+    xf = comp.Transform2
+    xf.ArrayData = win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, data)
+    comp.SetTransformAndSolve2(xf)
+    asm.ForceRebuild3(False)
+    return get_component_pose(comp)[0]
+```
+
+边界：
+
+- 只测非固定件；固定件看 `IsFixed`，不看位移。
+- 测完把原 16 位数组写回去（同样必须用 VARIANT），不要留在推动后的位置。
+- 这是“覆盖位姿再求解”，证明的是“这个方向有没有约束”，不能替代 GUI 拖动手感。
+- 探针会改内存里的装配：不保存，或在副本上跑。
+
+### 4. 角度驱动轨迹：验证整条链
+
+角度驱动的验收不是“转了”，而是“整条链按铰链圆弧走”：
+
+1. 记下所有链上零件的初始位置；
+2. 加临时角度配合（如臂 98°→88°），`ForceRebuild3(False)`；
+3. 读位移：转轴上的零件（转盘、臂原点）位移应为 0；铰链后的零件（上销、背板、
+   双钩、手机）应同步位移，且**垂直于转轴的分量 ≈ 0**（绕 X 转的链，X 漂移应为 0）；
+4. 臂的实际转角用局部轴夹角核对（目标 10°，实测 10.0000°）；
+5. 删除临时配合再重建，位姿变化应为 0。
+
+折叠支架实测：臂 98°→88°，上销/背板/双钩/手机一律 `Δ=(0.000, −16.015, +0.839) mm`；
+删除配合后位姿变化 `0.000 mm`。证据脚本 `showcase/04-phone-stand/a04_motion_check.py`。
+
+对称双钩各加一个角度配合会 error 5；只给一侧加，另一侧用同步配合跟随。
+
+### 5. 转动自由度：只认「驱动后的转轴」，推变换测不出来
+
+SW2023 实测（2026-10-25 折叠支架复查）：用 `SetTransformAndSolve2` 把组件原地转 5°，
+重建后求解器把整块旋转退回原位——plate/turntable/hook 全读成 0°，而它们其实能转。
+**推移法只能测平移约束**；转动自由度必须用临时角度配合驱动，再从位姿变化反解转轴：
+
+```python
+from sw_assembly import probe_hinge_axis
+
+info = probe_hinge_axis(
+    asm, plate,
+    lambda: find_planar_face(plate, "y", 0.006, 1),   # 背板背面
+    lambda: find_planar_face(arm, "z", 0.100, 1),     # 臂顶面
+    settle_deg=110.0, test_deg=115.0)
+# {'swept_deg': 5.0, 'axis': [1.0, 0.0, 0.0], 'origin_drift_mm': 0.0, 'mate_removed': 1}
+```
+
+判据（折叠支架上/下铰链实测全部满足）：
+
+| 项 | 通过标准 | 实测 |
+|---|---|---|
+| 实转角 | ≈ 目标增量（5°） | 5.000° |
+| 转轴 | 等于设计的铰链轴（本例世界 X） | (1, 0, 0) |
+| 被驱动件原点漂移 | ≤ 0.01 mm（原点在轴上，绕轴转时原点不动） | 0.000 mm |
+
+- 转轴不是设计轴 → 关节在左右摆，而不是前后转。
+- 原点漂移 > 0.01 mm → 关节能吃进平移（沿销轴窜）。
+- 先摆到 `settle_deg` 再驱动 `test_deg`：装配里没有读“当前夹角”的接口，两步才有确定的增量。
+
+**实体引用会过期**：任何 `ForceRebuild3`/加配合之后，之前取到的装配体上下文 `IFace2`
+再 `Select2` 会报「被调用的对象已与其客户端断开连接」。所以参考面要用**零参可调用**
+现取（`lambda: find_planar_face(...)`），不要提前把实体存进变量。
 
 ## 放置坐标与选面
 
@@ -293,8 +412,13 @@ for body in bodies:
 - 使用 `移动零部件` / `Move Component` 拖动轴、齿轮或上盖。
 - 如果 Gear Mate 正确，拖动一个齿轮绕轴旋转时，另一个齿轮会按比例反向/同向联动。
 - 如果拖不动，优先检查：零件是否固定、同心 Mate 是否勾了 Lock Rotation、是否额外用平面 Mate 把旋转件锁死、Mate 是否报错或过定义。
+- **拖动时轨迹不对，对照这四条**：
+  1. 拖任何零件整台装配平移 → 第一个件没有固定；
+  2. 零件沿销轴方向窜出 → 缺轴向定位配合；
+  3. 该联动的零件不动 → 同步配合缺失或配合链断开；
+  4. 该转的转不动、或绕错轴 → 同心勾了 Lock Rotation / 定位面选错。
 
-脚本生成的 GIF/预览视频只能证明“可以被驱动到多个位置”；真正可交互要靠 SolidWorks Mate 求解器和自由度。
+脚本生成的 GIF/预览视频只能证明“可以被驱动到多个位置”；真正可交互要靠 SolidWorks Mate 求解器和自由度。交付前用 `a04_motion_check.py` 那类探针把“固定件 / 三向平移 / 角度链轨迹 / 铰链转轴”四项测一遍。
 
 ## 干涉与运动边界
 
@@ -372,8 +496,40 @@ Width Mate 的选择标记用 `16`。没有把握时标为“需人工”，不�
 | 透明度 75% | 是 | 是 | 是 |
 
 “隐藏即排除”是错误直觉；质量属性或干涉结果与预期不符时先查隐藏件（P313–315、P331）。
-压缩/解除压缩已封装：`suppress_component` / `unsuppress_component`；
-**组件级隐藏（`Component2.Visible`）与透明度未封装**，需要时用 UI 或标“新增封装”。
+压缩/解除压缩已封装：`suppress_component` / `unsuppress_component`。
+
+组件级控制（SW2023 SP0.1 实测）：
+
+| 需求 | 写法 | 封装 |
+|---|---|---|
+| 隐藏/显示 | `component.Visible = False/True`（回读 1/0） | `sw_assembly.set_component_visibility()` |
+| 压缩/解压缩 | `component.SetSuppression2(0/2)`，返回码 **2=ChangeOk** | `sw_assembly.resolve_component()` |
+| 透明 | `SetMaterialPropertyValues2(9 位数组, 2, [])` 第 8 位 | `sw_appearance.set_component_transparency()` |
+
+### 装配体可能以“全压缩”状态存盘（SW2023 实测陷阱）
+
+症状：文件能打开、组件列表齐全，但 `GetBox(0)` 全 0，`SaveBMP` 只得到空白背景，
+工程图视图也可能是空的。
+
+判别：
+
+```python
+from sw_assembly import (resolve_all_components, assembly_box_mm,
+                         assert_assembly_has_geometry, safe_get_com_member)
+
+components = safe_get_com_member(asm, "GetComponents", False) or []
+print([safe_get_com_member(c, "GetSuppression") for c in components])  # 0 = 压缩
+resolve_all_components(asm)          # SetSuppression2(2)，返回 2 即成功
+assert_assembly_has_geometry(asm)    # 包围盒仍为 0 就停下查，不要继续截图
+```
+
+规则：
+
+- 渲染、导出、测量之前先确认包围盒非零；空白图先怀疑压缩，不要先怀疑 `SaveBMP`。
+- `CloseAllDocuments(True)` 会把当前内存状态（包含“全部压缩”）写回文件；
+  收尾时若不想固化意外状态，用 `CloseAllDocuments(False)` 或逐份显式保存。
+- 批量解析后用 `ForceRebuild3(False)` 再取包围盒。`EditRebuild3` 在本机是**属性**
+  （读到 bool，调用会报 `'bool' object is not callable`），不要调用它。
 
 ### 子装配体：一个零部件，刚/柔可控
 
@@ -433,10 +589,61 @@ Width Mate 的选择标记用 `16`。没有把握时标为“需人工”，不�
 - BOM 顺序随设计树；`Description` 可由零件说明自动填；复制到工程图时勾〖链接〗，
   自动零件序号才会联动（P348–351）。
 - **爆炸视图、爆炸直线、BOM〖链接〗勾选与自动零件序号联动、视图配置选择均未封装**；
-  BOM 表插入本身已有 `insert_bom_table(config_name=...)`，不要整体标“人工”。
+  BOM 表插入本身已有 `insert_bom_table(view, template_path, x, y, config_name=...)`
+  （必须对**视图**调用，`IView.InsertBomTable4` 是 10 参数方法），不要整体标“人工”。
+  球标未封装，交付说明要写明 BOM 与视图未做球标关联。
 - 删除配合：`delete_mates(asm, [mate, ...])`（`Mate.Select2(False, 0)` + `EditDelete`，
   2026-10-25 实测删除后组件保持当前位姿）；读侧 `collect_mate_feature_summary`；
   添加侧 `add_mate5_checked` 及各配合封装。
+
+#### 没有爆炸特征时的“静态分解图”（SW2023 实测，2026-10-25）
+
+`IAssemblyDoc` 的爆炸视图特征未封装。要一张能看清装配关系的分解图，
+可以直接搬组件再另存，**不要动原装配体**：
+
+```python
+import pythoncom, win32com.client
+from sw_assembly import assembly_box_mm
+from sw_connect import mm, save_document
+
+IDENT = [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0]]
+RY = [[0.0, 0, 1.0], [0, 1.0, 0], [-1.0, 0, 0]]   # 把 Z 向轴摆成 X 向
+
+def move(component, rot, t_mm):
+    # 前 9 位是 3x3 旋转的【列主序】：先取第 0 列 (r00,r10,r20)，再第 1、2 列
+    values = [rot[r][c] for c in range(3) for r in range(3)]
+    values += [mm(t_mm[0]), mm(t_mm[1]), mm(t_mm[2]), 1.0, 0.0, 0.0, 0.0]   # 16 位
+    transform = component.Transform2
+    transform.ArrayData = win32com.client.VARIANT(
+        pythoncom.VT_ARRAY | pythoncom.VT_R8, values)   # 必须 VARIANT
+    try:
+        component.SetTransformAndSolve2(transform)
+    except Exception:
+        component.Transform2 = transform
+
+move(gear, IDENT, (37.5, 0, 235))
+asm.ForceRebuild3(False)
+box = assembly_box_mm(asm)                   # 各组件 GetBox 并集；分解后应明显变大
+save_document(asm, asm_path.replace(".SLDASM", "_爆炸图.SLDASM"))
+```
+
+规则：
+
+- `Transform2.ArrayData` 是 **16 位**：9 位旋转（**列主序**）+ 3 位平移（米）
+  + scale + 三个 0。直接赋 list/tuple 会被**静默丢弃**，必须
+  `VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, values)`；赋完调用
+  `SetTransformAndSolve2`（本机 `sw.GetMathUtility()` 晚绑定不可达）。
+- 列主序最容易写错的地方：单位矩阵是对称的，写错也看不出来；
+  一旦有 90° 旋转就会转到错误的轴。写完读回 `Transform2.ArrayData` 核对。
+- `EditRebuild3` 是属性，重建用 `asm.ForceRebuild3(False)`。
+- 本机 SW2023 SP0.1 实测 `SetTransformAndSolve2` 只吃平移、加不上旋转；
+  上面的旋转矩阵写法在支持旋转的版本可用，本机摆姿态仍走“临时角度配合 → 删除”。
+- 先按轴向分组：轴/垫块/齿轮沿轴向拉开，壳体沿装配方向拉开；每件一个偏移量，
+  不要用随机数。
+- 保存到**新文件名**（`_爆炸图.SLDASM`），原装配体保持装配位置。
+- 这是**静态分解图**：位置改动会违反原有配合，重新打开时可能报配合错误或被求解器
+  拉回。仅用于出图/截图，不要当作可编辑的爆炸配置交付；交付说明写明是静态分解。
+- 分解前后都 `GetBox(0)` 记录包围盒，作为“确实分解开了”的证据。
 
 ### 选项与模板（P358–359）
 
@@ -471,6 +678,8 @@ Width Mate 的选择标记用 `16`。没有把握时标为“需人工”，不�
 | 定位平面重合后零件跑到另一侧 | 用了 CLOSEST | 面对面贴合用 ANTI | 换参考面 |
 | 加配合 error_status=5 | 冗余（自由度已被占）/ 零件已翻转 | 删掉冗余配合；先查位姿 | 见「冗余配合」 |
 | 摆姿态后件折到错误一侧 | 角度配合镜像解（目标在两解中间） | 改平行参考面 + 0° | 摆完读包围盒核对 |
+| 拖动任何零件整台装配跟着平移 | 第一个件没有固定（`AddComponent5` 不自动固定） | `Select2` + `FixComponent()`，断言 `IsFixed` | — |
+| 铰链零件沿销轴窜出 | 只加了同心，缺轴向定位 | 用平行于转轴的面补重合/距离配合 | 自由度探针三向强推复核 |
 | 旋转写不进去 | SW2023 `SetTransformAndSolve2` 不应用旋转 | 临时角度配合 → 删除 | — |
 | 零件门禁全过、装配有干涉 | 零件特征在错的坐标系里算 | 写出两原点偏移再换算 | 干涉体积反推几何 |
 | 干涉检查 `blocked` | 用了不存在的 `InterferenceDetection` | 用 `InterferenceDetectionManager` | — |
@@ -479,11 +688,16 @@ Width Mate 的选择标记用 `16`。没有把握时标为“需人工”，不�
 ### 给弱模型的执行边界
 
 - 第一件固定在原点；其余一件一件加配合，每加一个检查状态符号。
+  API 路线要显式 `Select2` + `FixComponent()`，并断言 `IsFixed`——`AddComponent5` 不自动固定。
 - 贴合面用重合，有间隙用平行/距离；**不要用重合硬拉有间隙的面**。
-- 轴入孔固定用“同轴心 + 平面重合”，需要转就 `lock_rotation=False`。
+- 轴入孔固定用“同轴心 + 平面重合”，需要转就 `lock_rotation=False`；
+  铰链还要一条**平行于转轴**的轴向定位面，否则会沿轴窜。
 - 对称居中优先宽度配合；没有把握选面时标“需人工”，不要用两个距离配合凑。
 - 静态干涉检查通过 ≠ 运动过程无碰撞；交付说明要写清做了哪一种检查（P333）。
 - 同心 = CLOSEST，面对面贴合 = ANTI；每加一个配合读一次位姿，对角出现负值就停。
 - 报 error 5 不要换 align 盲试：先查是不是冗余、是不是上一个配合已经把件翻了。
 - 摆姿态只用“临时角度配合 → 删除”；目标为 0° 时选平行参考面。
 - 装配完成必须跑 `get_interference_detection`，`blocked` 当作未检查，不当作通过。
+- 可动装配跑四项运动门禁：固定件 `IsFixed`；非固定件三向强推 10 mm 位移为 0；
+  角度驱动时整条链同步走、垂直于转轴的分量为 0；`probe_hinge_axis()` 的转轴等于设计轴、
+  原点漂移 ≤ 0.01 mm。第四项不能省——前三项都查不出「关节在左右摆」。

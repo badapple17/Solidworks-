@@ -253,6 +253,79 @@
       },
       "notes": "对应 references/part-to-drawing.md §7.5：机器初筛抓 DIM_NO_LEADER/DIM_FLOATING/OUT_OF_FRAME/VIEW_OVERLAP；通过不等于图纸合格，未执行要标 not_run。",
       "failure_signals": ["没跑检查就说没问题", "把 skipped 写成 pass", "只报 view_count"]
+    },
+    {
+      "id": "m2d_dimension_layout_triage",
+      "route": "model_to_three_view",
+      "mode": "B",
+      "prompt": "这张工程图的尺寸数值都对，但排得特别乱：有的数字压线，有的尺寸线共线，小尺寸反而在最外面。帮我按 skill 重排并说明你改了什么。",
+      "input_note": "任意带 ≥6 个模型尺寸的零件；薄板/叠板类最容易复现。",
+      "expected": {
+        "must_read": ["references/dimension-layout.md"],
+        "must_run": ["arrange_dimension_positions 或 auto_arrange_drawing_dimensions"],
+        "must_report": ["dimension_placement.status", "verified_count/placed_count", "逐条目视结论"],
+        "layout_checks": ["小内大外", "同层尺寸线不共线", "数字不被线穿过", "尺寸在轮廓外", "尺寸链有开口"],
+        "must_not": ["status=pass 就宣布好看", "只调文字不检查尺寸线区间", "把三个相同尺寸硬排三遍而不提示合并"]
+      },
+      "notes": "对应 references/dimension-layout.md §0/§4.5/§7.2：机器 pass 只证明找到位置，共线、层级、压线必须目视；工具不能改文字，n×/EQS 要人工合并。",
+      "failure_signals": ["把 dimension_placement.pass 当审美合格", "退回旧两列均分", "不报告已知限制"]
+    },
+    {
+      "id": "asm_appearance_transparency",
+      "golden": false,
+      "route": "assembly_appearance",
+      "mode": "B",
+      "prompt": "这个装配体现在所有零件叠在一起，看不出装配关系。给我做一个透明化+涂色的版本，能看清内部零件怎么装的。原来的文件别覆盖。",
+      "input_note": "任意 ≥3 个零件、含壳体的装配体；先确认原文件能正常显示（包围盒非零）。",
+      "expected": {
+        "must_read": ["references/appearance.md"],
+        "must_run": ["先 shutil.copy2 再打开副本", "sw_appearance.apply_component_style_map（或 set_component_transparency）", "sw_assembly.resolve_all_components（截图前）"],
+        "must_report": ["每个组件的颜色与透明度回读值", "原文件与新文件路径", "包围盒或视图非空证据"],
+        "must_not": ["覆盖原装配体", "把全部零件都设半透明", "把透明说成隐藏", "只在 setter 不报错时就宣布成功"]
+      },
+      "notes": "对应 appearance.md 组件透明度节：透明度是九位材质数组第 8 位；壳体 0.75~0.85、内部件 0~0.1；透明件仍画全部边线，密边零件保持实色。SW2023 实测：装配体可能以全压缩存盘，GetBox 全 0、截图只剩背景，必须先 resolve_all_components。",
+      "failure_signals": ["覆盖了原装配体", "截图只有背景色就交付", "所有零件都透明导致线团", "声称透明件已被排除出质量计算"]
+    },
+    {
+      "id": "asm_motion_dof",
+      "golden": false,
+      "route": "assembly_motion",
+      "mode": "A",
+      "prompt": "这个折叠支架的装配能打开，但我用鼠标拖动时整台支架会跟着平移，有的零件还会沿销轴滑出来。修好它，并给出能证明运动正确的证据。",
+      "input_note": "任意含 ≥2 个铰链的可动装配；先确认底座是否固定、配合树里有无轴向定位。",
+      "expected": {
+        "must_read": ["references/assembly.md（可动装配：自由度必须逐件消干净）"],
+        "must_run": ["FixComponent + IsFixed 回读", "非固定件 X/Y/Z 各强推 10 mm 的自由度探针", "临时角度配合驱动 → 删除"],
+        "must_report": ["固定件状态", "每个零件的三向位移", "角度驱动的链上位移与 X 漂移", "删除配合后的位姿变化", "干涉结果"],
+        "pass_criteria": {
+          "base_is_fixed": true,
+          "non_fixed_translation_max_mm": 0.01,
+          "chain_dx_mm": 0.01,
+          "pose_after_delete_max_mm": 0.01,
+          "interference_count": 0
+        },
+        "must_not": ["只看配合数量就宣布可拖动", "用 SetTransformAndSolve2 的位移判断是否固定", "把固定件算进平移探针"]
+      },
+      "notes": "对应 references/assembly.md 新增节与 showcase/04-phone-stand/a04_motion_check.py。SW2023 实测：AddComponent5 插入的第一个件不自动固定；SetTransformAndSolve2 连固定件也能推动，IsFixed 才是真值；同心配合不约束轴向，每个铰链要补平行于转轴的定位面。",
+      "failure_signals": ["拖动整台平移仍交付", "零件沿轴向窜出", "只跑干涉就宣布运动正确", "用强推位移判断固定件"]
+    },
+    {
+      "id": "sm_base_flange_flat",
+      "golden": true,
+      "route": "sheet_metal",
+      "mode": "B",
+      "prompt": "建一个钣金平板：100×50，板厚 0.5，折弯半径 0.5，并确认零件里有平板型式、能展开。",
+      "expected": {
+        "body_count": 1,
+        "envelope_mm": [100.0, 50.0, 0.5],
+        "envelope_tolerance_mm": 0.1,
+        "volume_mm3": 2500.0,
+        "volume_tolerance_mm3": 1.0,
+        "feature_types": ["SheetMetal", "SMBaseFlange", "FlatPattern"],
+        "artifacts": ["sldprt", "preview", "review_report"]
+      },
+      "notes": "本机干净变量实测（2026-10-25）：闭合矩形草图 + InsertSheetMetalBaseFlange(0.5, False, 0.5, 0, ...) → 包围盒 [-50,-25,-0.5,50,25,0]、体积 2500.0 mm³、1 个实体，平板型式自动生成。CreateDefinition(38) 返回 False，不需要也不可用；InsertSheetMetalEdgeFlange2 实测返回 None。",
+      "failure_signals": ["用普通拉伸代替基体法兰，导致没有 FlatPattern", "调用 CreateDefinition(38)+CreateFeature 后报类型不匹配", "边线法兰返回 None 还继续调参数", "没选草图就调用基体法兰"]
     }
   ]
 }

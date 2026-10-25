@@ -86,6 +86,8 @@ actual_scale = props[2:4]    # 2:1 = [2.0, 1.0]
 
 ## 尺寸标注
 
+> 排哪里、先标哪个、人为什么这样标：见 `dimension-layout.md`。本节只讲 API 与已实测的显示行为。
+
 ### 自动标注（模型项目）
 
 ```python
@@ -221,8 +223,10 @@ drawing.AddDimension2(x, y, 0)  # 尺寸标注放置位置
 ## 注释与标注
 
 ```python
-# 添加注释
+# 添加注释：InsertNote 只有 text 一个参数，坐标无效
 note = drawing.InsertNote(text)
+note.GetAnnotation.SetPosition(x, y, 0)          # 单位：米；这一步才决定位置
+note.GetTextFormat.CharHeight = 0.0035           # 单位：米（3.5 mm）
 
 # 添加表面粗糙度符号
 drawing.InsertSurfaceFinishSymbol3(...)
@@ -234,18 +238,52 @@ drawing.InsertWeldSymbol(...)
 drawing.InsertDatumTag2(...)
 ```
 
+SW2023 SP0.1 实测：
+
+- `InsertNote("...")` 的返回对象默认落在**图纸原点附近**，不是鼠标位置；
+  不调用 `SetPosition` 的注释会叠在标题栏上。封装：`sw_drawing.add_note()`。
+- 本机 `GetAnnotation` / `GetTextFormat` 是**属性式成员**（不加括号），
+  写成方法调用会报 `'str' object is not callable`；用 `get_com_member()` 自动兼容两种形态。
+- 多行注释用 `\n` 分隔，`CharHeight` 是**米**；标题栏技术要求常用 0.0035（3.5 mm）。
+
 ## BOM 表
 
+`InsertBomTable4` 是 **IView 上的 10 参数方法**（不是 IDrawingDoc 的 7 参数版本，
+后者在 SW2023 上参数对不上、会报“无效的参数数目”）。模板路径在第 7 位：
+
 ```python
-bom = drawing.InsertBomTable4(
-    TemplateName,  # str: BOM 模板路径(.sldbomtbt)
-    X, Y,          # float: 位置
-    BomType,       # int: 1=顶层, 2=仅零件, 3=缩进
-    Configuration, # str: 配置名
-    TableAnchor,   # str: 锚点名
-    Hidden         # bool: 是否包含隐藏组件
+bom = view.InsertBomTable4(
+    UseAnchorPoint,   # bool
+    X, Y,             # float: 米
+    AnchorType,       # int: swBOMConfigurationAnchorType_e 1=左上 2=右上 3=左下 4=右下
+    BomType,          # int: swBomType_e 1=PartsOnly 2=TopLevelOnly 3=Indented
+    Configuration,    # str: 配置名，空串=当前配置
+    TableTemplate,    # str: BOM 模板路径(.sldbomtbt)；空串=默认模板
+    Hidden,           # bool: 是否隐藏表格（true=隐藏）
+    IndentedNumbering,# int: swNumberingType_e 0=None 1=Detailed 2=Flat
+    DetailedCutList,  # bool: 仅 BomType=3 时有效
 )
 ```
+
+参数顺序与枚举值取自本机 `SolidWorks.Interop.sldworks` 帮助页
+（`IView~InsertBomTable4`）与 `SwConst`：**`BomType` 不是 0/1/2/3 顺序递增**
+（`PartsOnly=1`、`TopLevelOnly=2`、`Indented=3`），凭直觉写会拿到错误的表类型。
+`InsertBomTable4` 只在 `IView` 上，`IDrawingDoc` 上没有这个方法。
+
+封装：`sw_drawing.insert_bom_table(view, template_path, x, y, ...)`。
+
+实测（SW2023 SP0.1，本机无自备 `.sldbomtbt` 模板）：
+
+- `TableTemplate=""` 会用默认模板，表能插进去；行数据（序号、数量、材料、单重、总重）
+  正确。
+- **属性链接列可能不刷新**：001 减速器装配图实测，零件已写入「图样代号 / 图样名称」
+  （含配置级，回读确认存在），GB 明细栏的「代号 / 名称」两列仍显示模板字面量
+  「图样代号」「图样名称」。试过配置级/文档级属性、`CustomPropertyView` 指定、
+  重存装配体后重建，均未解决。交付时二选一：
+  1. 改用不含属性链接的列，自己填文字；
+  2. 在交付说明里**逐列**写明哪些列是占位符（不要写“明细栏已完成”）。
+- **球标（balloon）本技能未封装**。没有球标的 BOM 仍可交付，但必须在交付说明里
+  写明“BOM 与视图未做球标关联”，不要写成已关联。
 
 ## 图纸操作
 
@@ -279,6 +317,29 @@ sheet.SetTemplateName(formatPath)  # .slddrt 文件路径
 ```
 
 ## 导出 PDF
+
+导出前必须先让视图“落定”，否则 PDF 会**随机缺视图**（SW2023 SP0.1 实测：
+新插入的视图不落定直接导出，PDF 里的视图数会少于报告里的视图数）。固定顺序：
+
+```python
+from sw_drawing import export_sheet_to_pdf, settle_drawing_views
+
+settle_drawing_views(drawing, pause=2.0, zoom=True)
+# 内部顺序：EditRebuild3（本机是属性式成员）→ sleep → ViewZoomtofit2 → sleep
+export_sheet_to_pdf(drawing, path)
+settle_drawing_views(drawing, pause=1.0)   # 导出后再落定一次
+export_sheet_to_pdf(drawing, path)         # 同名覆盖再导一次；第二次才稳定
+assert os.path.getsize(path) > 0
+```
+
+规则：
+
+- **重建 / 睡眠 / 缩放 / 保存** 四步缺一不可；跳过 sleep 直接 `SaveAs` 时
+  新插入的视图常常不渲染。
+- 导出后**再跑一遍同样的序列并覆盖导出**，是消除“缺视图”最省事的办法。
+- PDF 落盘与否看文件大小，不看 `SaveAs` 返回值（可能返回 `False` 但文件已写入）。
+- 导出完成后用 `sw_review.inspect_pdf_text_layout()` 读数：视图数与尺寸锚点
+  对不上就重导一次，仍缺则逐视图检查 `IView` 是否为 `None`。
 
 ```python
 sw = model.GetSldWorksObject()

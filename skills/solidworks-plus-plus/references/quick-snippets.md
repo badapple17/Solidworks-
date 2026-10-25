@@ -15,11 +15,18 @@ from sw_connect import mm, deg
 from sw_session import SolidWorksSession
 
 session = SolidWorksSession()          # 默认可见
-part = session.new_part()              # 新建零件
-session.save(part, r"<workdir>\part.SLDPRT")
-session.export(part, r"<workdir>\part.step")
-session.export(part, r"<workdir>\part.stl")
+try:
+    part = session.new_part()              # 新建零件
+    session.save(part, r"<workdir>\part.SLDPRT")
+    session.export(part, r"<workdir>\part.step")
+    session.export(part, r"<workdir>\part.stl")
+finally:
+    # 关全部文档（含依赖零件）+ 退出本会话启动的实例。
+    # 少了这一步，依赖零件继续占文件锁，用户双击交付文件打不开，只能重启电脑。
+    session.finish()
 ```
+
+也可以写成 `with SolidWorksSession() as session:`——退出 `with` 时自动 `finish()`。
 
 ## 2. 草图（自动进入/退出）
 
@@ -332,6 +339,10 @@ py -3.12 "<skill>\scripts\sw_three_view.py" \
   传图幅码时调用仍返回 `True`、图幅也对，但 PDF 会丢图框/标题栏/尺寸线。
 - `structure.dimension_count` 为 0 时，回模型给草图/孔补
   `auto_dimension_sketch()`；直接 `CreateLine/CreateCircle` 不会生成尺寸。
+- `dimension_placement.status == "pass"` 且 `verified_count == placed_count` 只证明每个
+  尺寸找到了位置，不证明好看；还要按 `references/dimension-layout.md` §7.2 检查
+  小内大外、同层共线、数字压线、尺寸链开口。重排入口：
+  `arrange_dimension_positions(drawing, view_boxes=[...], sheet_size=(0.420, 0.297))`。
 - `preview.not_blank` 必须为 `true`，并打开 PNG 目视检查布局。
 
 详见 `references/part-to-drawing.md`。
@@ -339,15 +350,37 @@ py -3.12 "<skill>\scripts\sw_three_view.py" \
 ## 14. 装配体 + 配合（简版）
 
 ```python
-from sw_assembly import add_component, add_mate5_checked, add_concentric_mate_by_cylinders
+from sw_assembly import (
+    add_component, fix_component, add_mate5_checked,
+    add_concentric_mate_by_cylinders, collect_mate_feature_summary,
+)
 
 session = SolidWorksSession()
 asm = session.new_assembly()
-component = add_component(asm, r"<workdir>\part1.SLDPRT")
-# 先解析组件对象，再按实体/面做配合；不要用屏幕坐标
+base = add_component(asm, r"<workdir>\base.SLDPRT")
+arm = add_component(asm, r"<workdir>\arm.SLDPRT")
+
+# AddComponent5 插入的第一个件不会自动固定；不固定则拖动时整台平移
+if not fix_component(asm, base):
+    raise RuntimeError("底座未固定")
+
+# 铰链：同心（CLOSEST）+ 一条平行于转轴的轴向定位面
+# 面用坐标找，不用名字/索引
 ```
 
-完整用法见 `references/assembly.md`。
+可动装配三项验收（缺一不可）：
+
+```python
+# 1) 固定件：IsFixed 是属性，不是方法
+print(base.IsFixed)
+
+# 2) 非固定件强推 10 mm 后应被求解器拉回（位移 0）
+#    写法见 references/assembly.md「自由度探针」
+# 3) 临时角度配合驱动 → 读链上位移 → delete_mates → 位姿变化应为 0
+```
+
+完整用法见 `references/assembly.md`；可运行模板：
+`showcase/04-phone-stand/a04_motion_check.py`。
 
 ## 15. 平面坐标方向（SW2023 实测，务必遵守）
 

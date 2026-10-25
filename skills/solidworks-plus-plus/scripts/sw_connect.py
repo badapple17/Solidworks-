@@ -2,6 +2,7 @@
 SolidWorks 连接工具
 提供连接到 SolidWorks 实例的各种方法
 """
+import atexit
 import glob
 import os
 import tempfile
@@ -212,10 +213,51 @@ def _wait_until_ready(sw, timeout_seconds):
     )
 
 
-def close_owned_solidworks(sw, started_by_cad_studio):
-    """只退出由当前 CAD Studio 会话启动的 SolidWorks 实例。"""
+def close_all_documents(sw, save=False):
+    """
+    关闭 SolidWorks 里所有已打开的文档，返回是否执行过关闭。
+
+    为什么必须关：装配体 `CloseDoc` 之后，被引用的零件文档仍留在内存里，
+    它们继续占着磁盘文件锁。用户双击交付的 .SLDPRT/.SLDASM 会打不开、报只读
+    或被拒，只能重启电脑。脚本收尾一定要走到这里。
+
+    参数:
+        save: False（默认）= 丢弃未保存修改，不会弹保存对话框卡住自动化。
+    """
+    try:
+        sw.CloseAllDocuments(bool(save))
+        return True
+    except Exception:
+        pass
+    closed_any = False
+    try:
+        # SW2023 实测：没有文档时 GetDocuments 是属性且返回 None，加括号会抛
+        # "'NoneType' object is not callable"；用 get_com_member 兼容两种形态。
+        documents = safe_get_com_member(sw, "GetDocuments") or []
+    except Exception:
+        documents = []
+    for document in documents:
+        try:
+            title = safe_get_com_member(document, "GetTitle")
+            if title:
+                sw.CloseDoc(title)
+                closed_any = True
+        except Exception:
+            continue
+    return closed_any
+
+
+def close_owned_solidworks(sw, started_by_cad_studio, close_documents=True):
+    """
+    只退出由当前 CAD Studio 会话启动的 SolidWorks 实例。
+
+    先关文档（不保存）再 ExitApp：否则未关的文档会让 ExitApp 弹保存对话框，
+    隐藏实例里没人点确认，进程就一直挂着占文件锁。
+    """
     if not started_by_cad_studio:
         return False
+    if close_documents:
+        close_all_documents(sw, save=False)
     for member_name in ("ExitApp", "Quit"):
         try:
             member = getattr(sw, member_name)
@@ -224,6 +266,109 @@ def close_owned_solidworks(sw, started_by_cad_studio):
         except Exception:
             continue
     return False
+
+
+_OPENED_DOCUMENTS = []   # [(sw, model, title)] 本进程打开/新建的文档
+_OWNED_INSTANCES = []    # [sw] 本进程启动的 SolidWorks 实例
+_RELEASE_HOOKED = False
+
+
+def register_owned_instance(sw):
+    """登记本进程启动的实例，并挂一次 atexit 释放钩子（进程退出自动清场）。"""
+    global _RELEASE_HOOKED
+    if not any(item is sw for item in _OWNED_INSTANCES):
+        _OWNED_INSTANCES.append(sw)
+    if not _RELEASE_HOOKED:
+        atexit.register(release_solidworks)
+        _RELEASE_HOOKED = True
+
+
+def _remember_document(sw, model):
+    """记录本进程打开/新建的文档，释放时只关自己开的文档。"""
+    try:
+        title = safe_get_com_member(model, "GetTitle")
+    except Exception:
+        return model
+    if title and all(existing[2] != title for existing in _OPENED_DOCUMENTS):
+        _OPENED_DOCUMENTS.append((sw, model, title))
+    return model
+
+
+def release_solidworks(sw=None, quit_owned=True, close_documents=True, save=False):
+    """
+    释放 SolidWorks：关闭本进程打开的文档，退出本进程启动的实例。
+
+    为什么必须做：只 `CloseDoc(装配体)` 时，被引用的零件文档仍留在内存里，
+    继续占着磁盘文件锁；自动化实例又常常不在 ROT 里，用户双击交付的
+    .SLDPRT/.SLDASM 会打不开或只能只读，往往要重启电脑才好。
+    进程退出还有隐藏实例挂着，任务管理器里能看到 SLDWORKS.exe。
+
+    `connect_solidworks()` 启动实例时会自动登记并挂 atexit 钩子，所以正常
+    脚本无需显式调用；它主要给 `SolidWorksSession.finish()`、测试和
+    异常中断后的手工清场用。
+
+    参数:
+        sw: 只释放该实例；None 表示释放本进程登记的全部实例。
+        quit_owned: 是否退出本进程启动的实例。
+        close_documents: 是否关闭本进程打开/新建的文档。
+        save: 关闭前是否保存未保存的修改；默认 False，不会弹保存对话框。
+
+    返回:
+        dict: documents_closed、instances_quit、owned。
+    """
+    closed = 0
+    if close_documents:
+        for entry in list(_OPENED_DOCUMENTS):
+            owner, model, title = entry
+            if sw is not None and owner is not sw:
+                continue
+            if save:
+                try:
+                    save_document(model)
+                except Exception:
+                    pass
+            try:
+                owner.CloseDoc(title)
+                closed += 1
+            except Exception:
+                pass
+            try:
+                _OPENED_DOCUMENTS.remove(entry)
+            except ValueError:
+                pass
+
+    # 只有本进程**登记过**的实例才允许退出。用户自己双击启动的 SolidWorks
+    # 不在登记表里，脚本绝不能把它关掉（否则会丢用户未保存的工作）。
+    owned_targets = [
+        instance for instance in _OWNED_INSTANCES
+        if sw is None or instance is sw
+    ] if quit_owned else []
+
+    quit_count = 0
+    keep_alive = os.environ.get("SW_KEEP_ALIVE") == "1"
+    for instance in owned_targets:
+        try:
+            # 依赖零件会随装配体一起关掉：只 CloseDoc(装配体) 不够。
+            close_all_documents(instance, save=save)
+        except Exception:
+            pass
+        if not keep_alive:
+            try:
+                if close_owned_solidworks(instance, True, close_documents=False):
+                    quit_count += 1
+            except Exception:
+                pass
+        try:
+            _OWNED_INSTANCES.remove(instance)
+        except ValueError:
+            pass
+    if sw is None:
+        _OPENED_DOCUMENTS.clear()
+    return {
+        "documents_closed": closed,
+        "instances_quit": quit_count,
+        "owned": bool(owned_targets),
+    }
 
 
 def connect_solidworks(version=None, wait_seconds=5, visible=True, return_metadata=False):
@@ -278,6 +423,9 @@ def connect_solidworks(version=None, wait_seconds=5, visible=True, return_metada
         print(f"当前文档: {title} (类型: {doc_types.get(doc_type, '未知')})")
     else:
         print("当前没有打开的文档")
+
+    if launched_here:
+        register_owned_instance(sw)
 
     metadata = {
         "prog_id": prog_id,
@@ -392,7 +540,7 @@ def new_document(sw, doc_type="part", template_path=None):
         raise RuntimeError(f"创建{DOC_TYPE_LABELS.get(doc_type, doc_type)}文档失败，SolidWorks 未返回活动文档")
 
     print(f"已创建新{DOC_TYPE_LABELS.get(doc_type, doc_type)}文档")
-    return model
+    return _remember_document(sw, model)
 
 
 def open_document(sw, file_path, read_only=False, silent=False, raise_on_error=False):
@@ -480,7 +628,7 @@ def open_document(sw, file_path, read_only=False, silent=False, raise_on_error=F
         if raise_on_error:
             raise RuntimeError(message)
         print(message)
-    return model
+    return _remember_document(sw, model) if model else model
 
 
 def save_document(model, file_path=None):

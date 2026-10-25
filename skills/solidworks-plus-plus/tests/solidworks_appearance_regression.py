@@ -12,7 +12,15 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_DIR / "scripts"))
 
-from sw_appearance import apply_component_palette, rgb01, set_document_appearance
+from sw_appearance import (
+    apply_component_palette,
+    get_component_transparency,
+    rgb01,
+    set_component_appearance,
+    set_component_transparency,
+    set_document_appearance,
+    verify_transparency,
+)
 from sw_assembly import add_component
 from sw_connect import get_com_member, mm
 from sw_part import extrude_midplane, sketch, sketch_rectangle
@@ -82,7 +90,41 @@ def main() -> int:
             rgb01(component_color),
             "component_silver",
         )
+
+        # 颜色 + 透明度一次写入：palette 三元组
+        glass_transparency = 0.82
+        reports = apply_component_palette([(component, component_color, glass_transparency)])
+        if not reports[0]["ok"] or not reports[0]["transparency_check"]["ok"]:
+            raise AssertionError(f"组件透明度写入失败: {reports[0]}")
+        assert_rgb(
+            component.MaterialPropertyValues,
+            rgb01(component_color),
+            "component_glass_rgb",
+        )
+        if not verify_transparency(component, glass_transparency)["ok"]:
+            raise AssertionError(
+                f"透明度回读不一致: {get_component_transparency(component)}"
+            )
+
+        # 只改透明度、保留 RGB
+        if not set_component_transparency(component, 0.2):
+            raise AssertionError("set_component_transparency 返回失败")
+        assert_rgb(
+            component.MaterialPropertyValues,
+            rgb01(component_color),
+            "component_transparency_keeps_rgb",
+        )
+
+        # set_component_appearance 带 transparency 参数
+        if not set_component_appearance(component, component_color, transparency=0.35):
+            raise AssertionError("set_component_appearance(transparency=) 返回失败")
+        if not verify_transparency(component, 0.35)["ok"]:
+            raise AssertionError(
+                f"set_component_appearance 透明度回读不一致: "
+                f"{get_component_transparency(component)}"
+            )
         print("appearance_roundtrip_ok")
+        print("transparency_roundtrip_ok")
         return 0
     finally:
         if assembly_title:

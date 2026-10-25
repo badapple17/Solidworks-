@@ -1,0 +1,81 @@
+{
+  "case": "06-gear-pump-exam",
+  "generated_at": "2026-10-25",
+  "generator": "scripts/26_verify.py",
+  "note": "26_verify 重新打开三套交付装配，回读组件数、包围盒与 11_body 透明度；build_status.json 里保留各建造脚本写入的过程记录。",
+  "verify_final": {
+    "CLYBZP.SLDASM": {
+      "components": 26,
+      "bbox": [
+        -93.0,
+        -52.5,
+        0.0,
+        110.1,
+        52.5,
+        156.5
+      ],
+      "expected": [
+        -93.0,
+        -52.5,
+        0.0,
+        110.1,
+        52.5,
+        156.5
+      ],
+      "match": true
+    },
+    "CLYBZP_EXPLODED.SLDASM": {
+      "components": 26,
+      "bbox": [
+        -458.0,
+        -52.5,
+        0.0,
+        430.1,
+        52.5,
+        156.5
+      ],
+      "expected": [
+        -458.0,
+        -52.5,
+        0.0,
+        430.1,
+        52.5,
+        156.5
+      ],
+      "match": true
+    },
+    "CLYBZP_TRANSPARENT.SLDASM": {
+      "components": 26,
+      "bbox": [
+        -93.0,
+        -52.5,
+        0.0,
+        110.1,
+        52.5,
+        156.5
+      ],
+      "expected": [
+        -93.0,
+        -52.5,
+        0.0,
+        110.1,
+        52.5,
+        156.5
+      ],
+      "match": true,
+      "body_appearance": [
+        0.784,
+        0.804,
+        0.824,
+        1.0,
+        1.0,
+        0.45,
+        0.35,
+        0.8,
+        0.0
+      ],
+      "body_translucent": true
+    }
+  },
+  "status": "pass"
+}

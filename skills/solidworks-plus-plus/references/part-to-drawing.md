@@ -114,6 +114,8 @@ py -3.12 "<skill>\scripts\sw_three_view.py" \
 5. 尺寸文字避免压线、压中心线、侵入标题栏；用
    `arrange_dimension_positions()` 摆到规划视图框外侧（不要用 `GetOutline()`，
    它多算约 6 mm 边框），多列时错开半个行距，避免引出线共线；最后目视微调。
+   排版判据、小内大外、开链/基准和零件族习惯见 `dimension-layout.md`；
+   `dimension_placement.status == "pass"` 不等于好看，必须过该文档 §7.2 的目视清单。
 
 ## 5.5 工程图是零件的派生物（document discipline）
 

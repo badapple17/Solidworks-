@@ -1,0 +1,248 @@
+{
+  "assembly": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\a01_deployed.SLDASM",
+  "status": "pass",
+  "checks": {
+    "base_fixed": true,
+    "interference": {
+      "status": "pass",
+      "interference_count": 0,
+      "items": [],
+      "manual_review_required": false
+    },
+    "swept_deg": 10.0,
+    "max_abs_dx_mm": 0.0,
+    "pose_kept_after_delete_mm": 0.0,
+    "temporary_mates_removed": 1,
+    "mate_count": 18,
+    "mate_names": [
+      "M01_TT_D48",
+      "M02_TT_SEAT",
+      "M03_PINB_HOLE",
+      "M05_ARM_HOLE",
+      "M06_ARM_AXIAL",
+      "M07_PINT_FORK",
+      "M09_PLATE_TAB",
+      "M11_CLIP_R",
+      "M11_CLIP_L",
+      "M13_PHONE_BACK",
+      "M14_PHONE_BOTTOM",
+      "M04_PINB_AXIAL",
+      "M08_PINT_AXIAL",
+      "M10_PLATE_AXIAL",
+      "M12_CLIP_R_AXIAL",
+      "M12_CLIP_L_AXIAL",
+      "M16_HOOK_SYNC",
+      "M15_PHONE_AXIAL"
+    ],
+    "rows": [
+      {
+        "component": "turntable",
+        "before_mm": [
+          0.0,
+          -0.0,
+          7.4
+        ],
+        "after_mm": [
+          0.0,
+          -0.0,
+          7.4
+        ],
+        "delta_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "component": "pin_b",
+        "before_mm": [
+          0.0,
+          -22.0,
+          25.4
+        ],
+        "after_mm": [
+          0.0,
+          -22.0,
+          25.4
+        ],
+        "delta_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "component": "arm",
+        "before_mm": [
+          0.0,
+          -22.0,
+          25.4
+        ],
+        "after_mm": [
+          0.0,
+          -22.0,
+          25.4
+        ],
+        "delta_mm": [
+          0.0,
+          -0.0,
+          0.0
+        ]
+      },
+      {
+        "component": "pin_t",
+        "before_mm": [
+          0.0,
+          -9.196,
+          116.505
+        ],
+        "after_mm": [
+          0.0,
+          -25.211,
+          117.344
+        ],
+        "delta_mm": [
+          0.0,
+          -16.015,
+          0.839
+        ]
+      },
+      {
+        "component": "plate",
+        "before_mm": [
+          0.0,
+          -9.196,
+          116.505
+        ],
+        "after_mm": [
+          0.0,
+          -25.211,
+          117.344
+        ],
+        "delta_mm": [
+          0.0,
+          -16.015,
+          0.839
+        ]
+      },
+      {
+        "component": "hook_R",
+        "before_mm": [
+          27.0,
+          -0.68,
+          124.119
+        ],
+        "after_mm": [
+          27.0,
+          -16.695,
+          124.958
+        ],
+        "delta_mm": [
+          0.0,
+          -16.015,
+          0.839
+        ]
+      },
+      {
+        "component": "hook_L",
+        "before_mm": [
+          -27.0,
+          -0.68,
+          124.119
+        ],
+        "after_mm": [
+          -27.0,
+          -16.695,
+          124.958
+        ],
+        "delta_mm": [
+          0.0,
+          -16.015,
+          0.839
+        ]
+      },
+      {
+        "component": "phone",
+        "before_mm": [
+          0.0,
+          0.052,
+          129.239
+        ],
+        "after_mm": [
+          0.0,
+          -15.962,
+          130.079
+        ],
+        "delta_mm": [
+          0.0,
+          -16.015,
+          0.839
+        ]
+      }
+    ],
+    "dof_probe_mm": {
+      "turntable": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "arm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "pin_b": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "pin_t": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "plate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "phone": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "hook_R": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "hook_L": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "hinge_temps_removed": 2,
+    "hinge_axis": {
+      "arm": {
+        "angle_deg": 5.0,
+        "axis": [
+          1.0,
+          -0.0,
+          -0.0
+        ],
+        "origin_drift_mm": 0.0
+      },
+      "plate": {
+        "angle_deg": 5.0,
+        "axis": [
+          1.0,
+          -0.0,
+          -0.0
+        ],
+        "origin_drift_mm": 0.0
+      }
+    },
+    "hinge_axis_ok": true
+  }
+}

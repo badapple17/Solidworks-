@@ -206,7 +206,9 @@ def resolve_component(component, state=SW_COMPONENT_FULLY_RESOLVED):
     @brief 将组件解析为 Resolved/FullyResolved 状态。
     @param component IComponent2 对象。
     @param state swComponentSuppressionState_e，默认 2=swComponentFullyResolved。
-    @return SetSuppression2 的返回值；若主状态失败会尝试 3=swComponentResolved。
+    @return swSuppressionError_e 状态码：**2 = swSuppressionChangeOk = 成功**，
+        0=BadComponent、1=BadState、3=ChangeFailed。不要把 2 当错误。
+        若主状态失败会尝试 3=swComponentResolved。
     """
     if component is None:
         raise ValueError("component 不能为空")
@@ -216,6 +218,69 @@ def resolve_component(component, state=SW_COMPONENT_FULLY_RESOLVED):
         if state != SW_COMPONENT_RESOLVED:
             return component.SetSuppression2(SW_COMPONENT_RESOLVED)
         raise
+
+
+def resolve_all_components(asm_model, state=SW_COMPONENT_FULLY_RESOLVED):
+    """
+    @brief 批量解析（解压缩/还原）装配体全部组件，并回读解析前后状态。
+    @param asm_model IAssemblyDoc/IModelDoc2。
+    @param state 目标 swComponentSuppressionState_e，默认 2=完全还原。
+    @return list[dict]：name、before、after、status（2=成功）。
+
+    SW2023 实测：装配体在磁盘上可能保存为**全部组件压缩**（GetSuppression=0），
+    此时 GetBox 全为 0、SaveBMP 得到空白图。渲染/导出前必须先跑本函数。
+    """
+    components = safe_get_com_member(asm_model, "GetComponents", False) or []
+    report = []
+    for component in components:
+        name = str(safe_get_com_member(component, "Name2"))
+        before = safe_get_com_member(component, "GetSuppression")
+        status = resolve_component(component, state)
+        after = safe_get_com_member(component, "GetSuppression")
+        report.append({"name": name, "before": before, "after": after, "status": status})
+    try:
+        safe_get_com_member(asm_model, "EditRebuild3")
+    except Exception:
+        pass
+    return report
+
+
+def assembly_box_mm(asm_model):
+    """
+    @brief 读取装配体包围盒，单位 mm。
+    @return [xmin, ymin, zmin, xmax, ymax, zmax]。
+    """
+    box = safe_get_com_member(asm_model, "GetBox", 0) or [0.0] * 6
+    return [round(float(value) * 1000.0, 3) for value in box]
+
+
+def assert_assembly_has_geometry(asm_model):
+    """
+    @brief 渲染/导出前的门禁：包围盒必须非零。
+    @return 包围盒（mm）。
+    @raises RuntimeError 包围盒全 0 时——通常是组件全部被压缩。
+
+    空白预览图最常见的根因不是截图 API，而是装配体本身没有几何：
+    组件压缩（GetSuppression=0）时 GetBox 返回全 0，SaveBMP 只得到背景渐变。
+    """
+    box = assembly_box_mm(asm_model)
+    if max(abs(value) for value in box) < 1e-6:
+        raise RuntimeError(
+            "装配体包围盒为 0：组件可能全部处于压缩状态(GetSuppression=0)。"
+            "先调用 resolve_all_components(asm_model)，再渲染或导出。"
+        )
+    return box
+
+
+def set_component_visibility(component, visible):
+    """
+    @brief 设置组件可见性（不参与质量/干涉计算，与压缩语义不同）。
+    @return 回读的 Visible 值（1=可见，0=隐藏）。
+    """
+    if component is None:
+        raise ValueError("component 不能为空")
+    component.Visible = bool(visible)
+    return safe_get_com_member(component, "Visible")
 
 
 def get_component_model(component, resolve=True, raise_on_error=True):
@@ -420,11 +485,31 @@ def get_component_pose(component):
     """
     @brief 读组件位姿：((tx,ty,tz) 米, 3x3 旋转矩阵行)。
 
+    Transform2.ArrayData 前 9 项是旋转的**列主序**，这里转成行主序返回：
+    R[i][j] 是第 i 行第 j 列，局部轴在世界系的方向 = 第 j 列。
     配合求解后用它核对「零件是否被翻转」：旋转对角线应接近 (1,1,1) 或已知角度的 cos；
     出现 -1 说明对齐方式把零件翻了 180°。
     """
     t = component.Transform2.ArrayData
-    return (t[9], t[10], t[11]), ((t[0], t[1], t[2]), (t[3], t[4], t[5]), (t[6], t[7], t[8]))
+    return ((t[9], t[10], t[11]),
+            ((t[0], t[3], t[6]),
+             (t[1], t[4], t[7]),
+             (t[2], t[5], t[8])))
+
+
+def fix_component(asm_model, component):
+    """
+    @brief 固定组件并回读 IsFixed。
+
+    AddComponent5 插入的第一个零件**不会自动固定**（与 GUI 默认行为不同）；
+    不固定时拖动任何零件都会带着整台装配平移。
+    @return True 表示组件确已固定。
+    """
+    asm_model.ClearSelection2(True)
+    if not component.Select2(False, 0):
+        raise RuntimeError(f"无法选择组件: {safe_get_com_member(component, 'Name2')}")
+    asm_model.FixComponent()
+    return bool(component.IsFixed)
 
 
 def delete_mates(asm_model, mates):
@@ -635,28 +720,36 @@ def add_revolute_joint_by_cylinders(
 
 def build_transform_data_x(tx, ty, tz, angle_rad=0.0):
     """
-    @brief 生成绕局部 X 轴旋转并平移的 SolidWorks MathTransform 数组。
+    @brief 生成绕局部 X 轴旋转并平移的 16 位 Transform 数据。
+
+    前 9 项是 3x3 旋转的**列主序**：R_x 的第 0/1/2 列依次排列。
+    直接赋给 ArrayData 会被静默丢弃，必须由调用方包成
+    ``VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, data)``。
     @param tx X 平移，单位米。
     @param ty Y 平移，单位米。
     @param tz Z 平移，单位米。
     @param angle_rad 绕 X 轴旋转角，单位弧度。
-    @return 16 元组，可赋给 MathTransform.ArrayData。
+    @return 16 个 double 的列表。[12] 是 scale，[13..15] 为 0。
     """
     c = math.cos(angle_rad)
     s = math.sin(angle_rad)
-    return (
-        1.0, 0.0, 0.0,
-        0.0, c, -s,
-        0.0, s, c,
-        tx, ty, tz,
-        1.0,
+    return [
+        1.0, 0.0, 0.0,          # 第 0 列
+        0.0, c, s,              # 第 1 列
+        0.0, -s, c,             # 第 2 列
+        tx, ty, tz,             # 平移，米
+        1.0,                    # scale
         0.0, 0.0, 0.0,
-    )
+    ]
 
 
 def apply_component_transform_x(component, tx, ty, tz, angle_rad=0.0):
     """
-    @brief 基于组件现有 Transform2 修改位姿并触发装配求解。
+    @brief 设置组件绝对位姿（绕 X 轴转角 + 平移）并触发装配求解。
+
+    注意：本机 SW2023 SP0.1 实测 SetTransformAndSolve2 只应用平移，旋转不生效；
+    摆姿态仍应走“临时角度配合 → 删除”。本函数用于平移、演示帧和
+    支持旋转的版本。
     @param component IComponent2 对象。
     @param tx X 平移，单位米。
     @param ty Y 平移，单位米。
@@ -667,7 +760,9 @@ def apply_component_transform_x(component, tx, ty, tz, angle_rad=0.0):
     transform = component.Transform2
     if transform is None:
         raise RuntimeError("组件没有可用 Transform2")
-    transform.ArrayData = build_transform_data_x(tx, ty, tz, angle_rad)
+    transform.ArrayData = VARIANT(
+        pythoncom.VT_ARRAY | pythoncom.VT_R8,
+        build_transform_data_x(tx, ty, tz, angle_rad))
     try:
         if component.SetTransformAndSolve2(transform):
             return True
@@ -878,3 +973,109 @@ def get_interference_detection(asm_model, include_multibody=False):
             "manual_review_required": True,
             "error": str(exc),
         }
+
+
+def _rotation_of(component):
+    """ArrayData 的列主序旋转 -> 行主序 3x3。"""
+    t = component.Transform2.ArrayData
+    return ((t[0], t[3], t[6]),
+            (t[1], t[4], t[7]),
+            (t[2], t[5], t[8]))
+
+
+def _matrix_mul(a, b):
+    return tuple(
+        tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3))
+        for i in range(3)
+    )
+
+
+def _axis_angle_between(r0, r1):
+    """两个旋转矩阵之间的 (夹角 deg, 世界系单位转轴)。"""
+    d = _matrix_mul(r1, tuple(tuple(r0[j][i] for j in range(3)) for i in range(3)))
+    trace = d[0][0] + d[1][1] + d[2][2]
+    angle = math.degrees(math.acos(max(-1.0, min(1.0, (trace - 1.0) / 2.0))))
+    axis = [d[2][1] - d[1][2], d[0][2] - d[2][0], d[1][0] - d[0][1]]
+    norm = math.sqrt(sum(v * v for v in axis))
+    if norm < 1e-9:
+        return angle, [0.0, 0.0, 0.0]
+    axis = [v / norm for v in axis]
+    if max(axis, key=abs) < 0:
+        axis = [-v for v in axis]
+    return angle, [round(v, 4) for v in axis]
+
+
+def probe_translation_dof(asm_model, component, step_mm=10.0):
+    """
+    强推组件 ±X/Y/Z，重建后读回被求解器允许的残留位移。
+
+    SW2023 实测：这一招**只能测平移约束**。用同样的办法推旋转，求解器会把整块
+    旋转退回原位，能转的零件也读成 0°，所以转动自由度必须用
+    `probe_hinge_axis()`（临时角度配合驱动）。
+    固定件不适用：`SetTransformAndSolve2` 能推动固定件，固定件只认 `IsFixed`。
+
+    @return {'X': mm, 'Y': mm, 'Z': mm}，全部 ≤ 0.01 表示三个平移方向都被约束。
+    """
+    result = {}
+    original = list(component.Transform2.ArrayData)
+    origin = list(get_component_pose(component)[0])
+    for index, axis in enumerate(("X", "Y", "Z")):
+        data = list(original)
+        data[9 + index] += step_mm / 1000.0
+        try:
+            xf = component.Transform2
+            xf.ArrayData = VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, data)
+            component.SetTransformAndSolve2(xf)
+            asm_model.ForceRebuild3(False)
+            moved = get_component_pose(component)[0]
+            result[axis] = round(max(abs(moved[i] - origin[i]) for i in range(3)) * 1000.0, 3)
+        finally:
+            xf2 = component.Transform2
+            xf2.ArrayData = VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, original)
+            component.SetTransformAndSolve2(xf2)
+            asm_model.ForceRebuild3(False)
+    return result
+
+
+def probe_hinge_axis(asm_model, component, get_entity_a, get_entity_b,
+                     settle_deg, test_deg, name="T_HINGE_PROBE"):
+    """
+    用临时角度配合驱动铰链，从位姿变化反解转轴与原点漂移。
+
+    先摆到 `settle_deg`（装配里没有接口能直接读当前夹角），再驱动到 `test_deg`，
+    这样量到的就是确定的 `test_deg - settle_deg` 这一段。被驱动零件的原点若在
+    铰链轴上，绕轴转动时原点不应移动；原点漂移 > 0.01 mm 说明关节能做平移。
+
+    每次重建后 `IFace2` 会失效（实测报「被调用的对象已与其客户端断开连接」），
+    所以实体用零参可调用传入，每次使用前现取。
+
+    @param get_entity_a/get_entity_b: () -> 装配体上下文实体，每个铰链的参考面。
+    @return dict: swept_deg、axis、origin_drift_mm、mate_removed。
+    姿态会停在 test_deg；调用方负责不保存，或用另一个配合摆回。
+    """
+    first = None
+    try:
+        select_entities_for_mate(asm_model, get_entity_a(), get_entity_b(), mark=1)
+        first = add_mate5_checked(asm_model, SW_MATE_ANGLE,
+                                  angle=math.radians(settle_deg), name=f"{name}_SETTLE")
+        asm_model.ForceRebuild3(False)
+    finally:
+        if first is not None:
+            delete_mates(asm_model, [first])
+
+    r0 = _rotation_of(component)
+    p0 = list(get_component_pose(component)[0])
+    select_entities_for_mate(asm_model, get_entity_a(), get_entity_b(), mark=1)
+    temp = add_mate5_checked(asm_model, SW_MATE_ANGLE,
+                             angle=math.radians(test_deg), name=name)
+    asm_model.ForceRebuild3(False)
+    angle, axis = _axis_angle_between(r0, _rotation_of(component))
+    p1 = get_component_pose(component)[0]
+    drift = max(abs(p1[i] - p0[i]) for i in range(3)) * 1000.0
+    removed = delete_mates(asm_model, [temp])
+    return {
+        "swept_deg": round(angle, 4),
+        "axis": axis,
+        "origin_drift_mm": round(drift, 4),
+        "mate_removed": removed,
+    }

@@ -148,9 +148,11 @@
       "limitations": [
         "仅导入模型中已存在且标记为工程图的 DisplayDimension；模型缺少尺寸时先自动标注草图或补齐参数尺寸",
         "本机 SW2023 实测：001 连杆出图导入 23 个尺寸，含 φ25/φ15/φ12/φ8",
-        "自动排列只做初排，仍需人工检查位置、重叠和尺寸链完整性",
+        "自动排列只做初排：按 span 升序分层（小内大外），同层同时避让尺寸线区间与数字区间，可消除共线尺寸线；仍需人工检查尺寸链、合并 n×/EQS、目视美观",
         "InsertModelAnnotations3 的第 3 参数是 AllViews；DuplicateDims=False 仍会产生跨视图重复（齿轮图实测 10 个显示尺寸 → 4 个唯一），必须按 IDimension.FullName 去重",
-        "尺寸摆放用规划视图框，不用 IView.GetOutline（含约 6 mm 边框）；并排两列需错开半行距，避免引出线共线"
+        "尺寸摆放用规划视图框，不用 IView.GetOutline（含约 6 mm 边框）",
+        "已知限制：SW2023 同心直径尺寸必在圆心交叉（DisplayAsLinear/SetLeader3 不可用）；极小尺寸仍可能拉长线；工具只读 GetText，不能把重复尺寸改成 n×/EQS；文字宽按字符估算，带小数补尾零",
+        "dimension_placement.status=pass 只表示每个尺寸找到位置，不表示排版合格；必须按 references/dimension-layout.md §7.2 目视"
       ],
       "allowed_modes": [
         "interactive",
@@ -209,7 +211,12 @@
       "limitations": [
         "本机 SW2023 已实测 A3 第一角三视图 + 等轴测 + 23 尺寸 + PDF/PNG；图幅码 A4=6、A3=8，SetupSheet6 的 TemplateIn 必须同码",
         "尺寸自动排布质量有限，φ8 等小尺寸可能浮空，交付前必须目视检查",
-        "图框、标题栏、尺寸链、孔表和 GB/T 风格必须人工目视复核"
+        "图框、标题栏、尺寸链、孔表和 GB/T 风格必须人工目视复核",
+        "BOM 必须对 IView 调 InsertBomTable4（10 参数，模板在第 7 位）；BomType 为 swBomType_e：1=PartsOnly、2=TopLevelOnly、3=Indented，不是顺序枚举",
+        "InsertNote 不接受坐标，注释必须用 GetAnnotation.SetPosition(x,y,0) 定位；字高 CharHeight 单位是米",
+        "导出 PDF 前必须 重建→等待→ViewZoomtofit→保存→导出，并覆盖导出第二次；否则会随机丢视图",
+        "SW2023 实测：GB 明细栏的属性链接列可能不刷新（零件已有『图样代号/图样名称』仍显示模板字面量；配置级/文档级属性、CustomPropertyView、重存重建均无效），行数据正确；交付说明必须逐列标注占位符",
+        "球标（balloon）未封装，交付说明须写明 BOM 与视图未做关联"
       ],
       "allowed_modes": [
         "interactive",
@@ -312,7 +319,12 @@
       ],
       "limitations": [
         "必须回读配合特征和自由度；不等于完整干涉或受力分析",
-        "SW2023 SP0.1：同心配合用 CLOSEST 对齐，旋转姿态只能用临时角度配合摆放后删除；静态干涉走 InterferenceDetectionManager（tests/solidworks_assembly_align_regression.py）"
+        "SW2023 SP0.1：AddComponent5 插入的第一个件不自动固定，必须 FixComponent 并回读 IsFixed；SetTransformAndSolve2 连固定件也能推动，不能用来判断固定",
+        "同心配合不约束轴向：每个铰链要加一条平行于转轴的定位面（销头内侧面/端面 ↔ 座耳/外侧面）；与转轴垂直的面会 error 5",
+        "可动装配交付前跑三项探针：非固定件三向强推 10 mm 位移为 0、角度驱动链同步且垂直转轴分量为 0、删除临时配合后位姿不变（showcase/04-phone-stand/a04_motion_check.py）",
+        "SW2023 SP0.1：同心配合用 CLOSEST 对齐，旋转姿态只能用临时角度配合摆放后删除；静态干涉走 InterferenceDetectionManager（tests/solidworks_assembly_align_regression.py）",
+        "Transform2.ArrayData 为 16 位、旋转列主序、平移米；必须用 VARIANT(VT_ARRAY|VT_R8)，普通 list/tuple 会被静默丢弃",
+        "爆炸视图特征未封装；可改 Transform2.ArrayData 做静态分解并另存 _爆炸图.SLDASM（不改原文件），但这会违反原配合、只适合出图，不能当可编辑爆炸配置交付"
       ],
       "allowed_modes": [
         "interactive",
@@ -484,22 +496,60 @@
       ]
     },
     {
-      "id": "sheet_metal",
-      "label": "钣金建模与展开",
-      "level": "reference_only",
+      "id": "assembly_appearance",
+      "label": "装配体外观：组件颜色、透明度与可见性",
+      "level": "verified",
       "backends": [
         "solidworks-com"
       ],
-      "verified_versions": [],
+      "verified_versions": [
+        "2023"
+      ],
+      "upstream_verified_versions": [],
+      "dependencies": [
+        "SolidWorks",
+        "pywin32",
+        "comtypes"
+      ],
+      "limitations": [
+        "本机 SW2023 SP0.1 实测：组件颜色与透明度均通过 SetMaterialPropertyValues2(mat, 2, []) 写入，MaterialPropertyValues 回读 9 位一致；透明度是数组第 8 位（索引 7）",
+        "IComponent2.GetMaterialPropertyValues2 在 pywin32 下不可用，只能读属性 MaterialPropertyValues",
+        "半透明件在『带边线着色』下会画出全部内部边线；内齿圈/多孔法兰等密边零件应保持实色，否则整图变线团",
+        "透明度 0.75~0.85 适合壳体；>0.9 只剩轮廓线；不要把所有零件都设半透明",
+        "透明不等于隐藏：透明件仍参与配合、质量与干涉计算；Visibility 用 Component2.Visible 设置",
+        "透明涂色版必须先复制 SLDASM 再上色，原文件绝不上色；按零件名（去掉 -N 后缀）配色，apply_component_style_map(strict=True) 逐件回读 RGB/透明度",
+        "装配可能以全压缩状态存盘：先 resolve_all_components，否则包围盒为 0、截图空白、配色也可能不生效"
+      ],
+      "allowed_modes": [
+        "interactive",
+        "reviewed"
+      ]
+    },
+    {
+      "id": "sheet_metal",
+      "label": "钣金建模与展开",
+      "level": "pilot",
+      "backends": [
+        "solidworks-com"
+      ],
+      "verified_versions": [
+        "2023"
+      ],
       "upstream_verified_versions": [],
       "dependencies": [
         "SolidWorks"
       ],
       "limitations": [
-        "尚无稳定执行器和版本矩阵，不允许宣称已完成"
+        "本机 SW2023 SP0.1 实测：基体法兰 + 4 处切除 + 平板型式可生成，零件体积/包围盒可核对（高难度考试 Q2 盖板，2026-10-25）",
+        "平板型式由基体法兰自动生成（干净变量实测）；CreateDefinition(38)+CreateFeature 在本机不可用（返回 False / 类型不匹配）",
+        "InsertSheetMetalEdgeFlange2 干净变量实测返回 None、包围盒不变：侧壁应改用开放轮廓基体法兰一次成形，不要依赖边线法兰",
+        "封装：scripts/sw_sheetmetal.py 的 insert_base_flange / audit_sheet_metal / assert_sheet_metal；属 pilot，首次使用仍须回读包围盒与 FlatPattern",
+        "折弯半径只验过 0.5 mm；K 因子/折弯系数、成形工具、Hem/Miter 法兰未验证；展开图（工程图）未实测",
+        "平板型式 DXF/PDF 导出沿用 scripts/sw_export.py 的 export_flat_pattern_dxf，交付前必须重开文件核对"
       ],
       "allowed_modes": [
-        "interactive"
+        "interactive",
+        "reviewed"
       ]
     },
     {

@@ -321,7 +321,10 @@ def run(args) -> dict:
                                              "type": str(type(inserted))}
             report["dimension_dedupe"] = remove_duplicate_dimensions(drawing)
             report["dimension_placement"] = arrange_dimension_positions(
-                drawing, view_boxes=[item["box"] for item in layout["views"]])
+                drawing,
+                view_boxes=[item["box"] for item in layout["views"]],
+                sheet_size=(PAPER_SIZES[paper]["width_m"], PAPER_SIZES[paper]["height_m"]),
+            )
             if report["dimension_placement"].get("status") != "pass":
                 # 自定位失败时退回 SolidWorks 官方排列，至少不留未验证的手工位置。
                 try:

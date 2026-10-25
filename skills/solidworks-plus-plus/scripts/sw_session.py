@@ -9,10 +9,10 @@ from pathlib import Path
 import os
 
 try:
-    from .sw_connect import close_owned_solidworks, connect_solidworks, get_com_member, new_document, open_document, save_document
+    from .sw_connect import close_owned_solidworks, connect_solidworks, get_com_member, new_document, open_document, release_solidworks, save_document
     from .sw_export import export_to_dxf, export_to_iges, export_to_pdf, export_to_stl, export_to_step
 except ImportError:
-    from sw_connect import close_owned_solidworks, connect_solidworks, get_com_member, new_document, open_document, save_document
+    from sw_connect import close_owned_solidworks, connect_solidworks, get_com_member, new_document, open_document, release_solidworks, save_document
     from sw_export import export_to_dxf, export_to_iges, export_to_pdf, export_to_stl, export_to_step
 
 
@@ -54,6 +54,17 @@ class SolidWorksSession:
             visible=visible,
             return_metadata=True,
         )
+        self._opened_titles = []
+
+    def _track(self, model):
+        """记录本会话打开的文档标题，finish() 用它只关自己开的文档。"""
+        try:
+            title = get_com_member(model, "GetTitle")
+        except Exception:
+            title = None
+        if title and title not in self._opened_titles:
+            self._opened_titles.append(title)
+        return model
 
     @property
     def active_doc(self):
@@ -69,7 +80,9 @@ class SolidWorksSession:
             doc_type: "part"、"assembly"、"drawing" 或常见扩展名。
             template_path: 指定模板路径；None 表示自动查找模板。
         """
-        self.model = new_document(self.sw, doc_type=doc_type, template_path=template_path)
+        self.model = self._track(
+            new_document(self.sw, doc_type=doc_type, template_path=template_path)
+        )
         return self.model
 
     def new_part(self, template_path=None):
@@ -94,13 +107,13 @@ class SolidWorksSession:
             silent: 是否静默打开。
             raise_on_error: 打开失败时是否抛出异常。
         """
-        self.model = open_document(
+        self.model = self._track(open_document(
             self.sw,
             file_path,
             read_only=read_only,
             silent=silent,
             raise_on_error=raise_on_error,
-        )
+        ))
         return self.model
 
     def save(self, model=None, file_path=None):
@@ -163,6 +176,8 @@ class SolidWorksSession:
             except Exception:
                 is_current_model = True
         self.sw.CloseDoc(title)
+        if title in self._opened_titles:
+            self._opened_titles.remove(title)
         if is_current_model:
             self.model = self.sw.ActiveDoc
         return True
@@ -173,6 +188,42 @@ class SolidWorksSession:
             self.sw,
             bool(self.connection_info.get("started_by_cad_studio")),
         )
+
+    def finish(self, save=False):
+        """
+        会话收尾：关闭文档，并退出本会话启动的实例。
+
+        脚本最外层 `finally` 必须调用。只 `CloseDoc(装配体)` 不够——被引用的
+        零件文档仍留在内存里占着磁盘文件锁，用户双击交付文件会打不开，
+        只能重启电脑。隐藏实例里没人点保存对话框，进程会一直挂着。
+
+        附着到用户自己打开的实例时**不退出** SolidWorks，只关本会话打开的文档。
+
+        环境变量 `SW_KEEP_ALIVE=1` 可保留实例进程（批处理省启动时间），
+        但文档照样关闭，文件锁照样释放。
+
+        参数:
+            save: 是否保存未保存的修改。默认 False；交付文件应在脚本里显式保存。
+
+        返回:
+            dict: documents_closed、instance_quit、owned。
+        """
+        owned = bool(self.connection_info.get("started_by_cad_studio"))
+        report = release_solidworks(self.sw, quit_owned=True, save=save)
+        self._opened_titles.clear()
+        self.model = None
+        return {
+            "documents_closed": report["documents_closed"],
+            "instance_quit": report["instances_quit"] > 0,
+            "owned": owned,
+        }
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.finish()
+        return False
 
 
 def session(version=None, wait_seconds=5, visible=True):

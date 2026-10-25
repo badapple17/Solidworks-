@@ -1,0 +1,76 @@
+{
+  "verify_final": {
+    "CLYBZP.SLDASM": {
+      "components": 26,
+      "bbox": [
+        -93.0,
+        -52.5,
+        0.0,
+        110.1,
+        52.5,
+        156.5
+      ],
+      "expected": [
+        -93.0,
+        -52.5,
+        0.0,
+        110.1,
+        52.5,
+        156.5
+      ],
+      "match": true
+    },
+    "CLYBZP_EXPLODED.SLDASM": {
+      "components": 26,
+      "bbox": [
+        -458.0,
+        -52.5,
+        0.0,
+        430.1,
+        52.5,
+        156.5
+      ],
+      "expected": [
+        -458.0,
+        -52.5,
+        0.0,
+        430.1,
+        52.5,
+        156.5
+      ],
+      "match": true
+    },
+    "CLYBZP_TRANSPARENT.SLDASM": {
+      "components": 26,
+      "bbox": [
+        -93.0,
+        -52.5,
+        0.0,
+        110.1,
+        52.5,
+        156.5
+      ],
+      "expected": [
+        -93.0,
+        -52.5,
+        0.0,
+        110.1,
+        52.5,
+        156.5
+      ],
+      "match": true,
+      "body_appearance": [
+        0.784,
+        0.804,
+        0.824,
+        1.0,
+        1.0,
+        0.45,
+        0.35,
+        0.8,
+        0.0
+      ],
+      "body_translucent": true
+    }
+  }
+}

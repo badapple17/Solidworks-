@@ -1,0 +1,241 @@
+{
+  "model": {
+    "title": "a01_deployed.SLDASM",
+    "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\a01_deployed.SLDASM",
+    "type": 2,
+    "feature_count": 24,
+    "features": [
+      {
+        "name": "Favorites",
+        "type": "FavoriteFolder"
+      },
+      {
+        "name": "History",
+        "type": "HistoryFolder"
+      },
+      {
+        "name": "Selection Sets",
+        "type": "SelectionSetFolder"
+      },
+      {
+        "name": "传感器",
+        "type": "SensorFolder"
+      },
+      {
+        "name": "设计活页夹",
+        "type": "DocsFolder"
+      },
+      {
+        "name": "注解",
+        "type": "DetailCabinet"
+      },
+      {
+        "name": "Markups",
+        "type": "InkMarkupFolder"
+      },
+      {
+        "name": "光源、相机与布景",
+        "type": "EnvFolder"
+      },
+      {
+        "name": "备注",
+        "type": "CommentsFolder"
+      },
+      {
+        "name": "方程式",
+        "type": "EqnFolder"
+      },
+      {
+        "name": "前视基准面",
+        "type": "RefPlane"
+      },
+      {
+        "name": "上视基准面",
+        "type": "RefPlane"
+      },
+      {
+        "name": "右视基准面",
+        "type": "RefPlane"
+      },
+      {
+        "name": "原点",
+        "type": "OriginProfileFeature"
+      },
+      {
+        "name": "01_base-1",
+        "type": "Reference"
+      },
+      {
+        "name": "02_turntable-1",
+        "type": "Reference"
+      },
+      {
+        "name": "04_pin_bottom-1",
+        "type": "Reference"
+      },
+      {
+        "name": "03_arm-1",
+        "type": "Reference"
+      },
+      {
+        "name": "05_pin_top-1",
+        "type": "Reference"
+      },
+      {
+        "name": "06_plate-1",
+        "type": "Reference"
+      },
+      {
+        "name": "07_hook-1",
+        "type": "Reference"
+      },
+      {
+        "name": "07_hook-2",
+        "type": "Reference"
+      },
+      {
+        "name": "08_phone_reno14-1",
+        "type": "Reference"
+      },
+      {
+        "name": "配合",
+        "type": "MateGroup"
+      }
+    ]
+  },
+  "cad_spec": {
+    "units": "mm",
+    "measurement_source": "SolidWorks API GetPartBox(True) + B-Rep cylindrical faces",
+    "envelope_mm": null,
+    "holes": [],
+    "compound_holes": [],
+    "slot_arc_candidates": [],
+    "cylindrical_faces": [],
+    "errors": [
+      "包围盒读取失败: <unknown>.GetPartBox",
+      "实体拓扑读取失败: <unknown>.GetBodies2",
+      "体积读取失败: <unknown>.GetBodies2"
+    ],
+    "volume_mm3": null,
+    "volume_body_count": 0,
+    "hole_count": 0,
+    "hole_groups": []
+  },
+  "previews": [
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\previews\\a01_deployed_isometric.bmp",
+      "exists": true,
+      "size_bytes": 4800054,
+      "width": 1600,
+      "height": 1000,
+      "unique_sample_values": 630,
+      "dark_pixel_ratio": 0.486328125,
+      "likely_blank": false
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\previews\\a01_deployed_front.bmp",
+      "exists": true,
+      "size_bytes": 4800054,
+      "width": 1600,
+      "height": 1000,
+      "unique_sample_values": 203,
+      "dark_pixel_ratio": 0.5738932291666666,
+      "likely_blank": false
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\previews\\a01_deployed_top.bmp",
+      "exists": true,
+      "size_bytes": 4800054,
+      "width": 1600,
+      "height": 1000,
+      "unique_sample_values": 468,
+      "dark_pixel_ratio": 0.4933810763888889,
+      "likely_blank": false
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\previews\\a01_deployed_right.bmp",
+      "exists": true,
+      "size_bytes": 4800054,
+      "width": 1600,
+      "height": 1000,
+      "unique_sample_values": 254,
+      "dark_pixel_ratio": 0.4305555555555556,
+      "likely_blank": false
+    }
+  ],
+  "expected_outputs": [
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\01_base.SLDPRT",
+      "exists": true,
+      "size_bytes": 182602
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\02_turntable.SLDPRT",
+      "exists": true,
+      "size_bytes": 138437
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\03_arm.SLDPRT",
+      "exists": true,
+      "size_bytes": 98526
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\04_pin_bottom.SLDPRT",
+      "exists": true,
+      "size_bytes": 126016
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\05_pin_top.SLDPRT",
+      "exists": true,
+      "size_bytes": 78016
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\06_plate.SLDPRT",
+      "exists": true,
+      "size_bytes": 156314
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\07_hook.SLDPRT",
+      "exists": true,
+      "size_bytes": 89976
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\08_phone_reno14.SLDPRT",
+      "exists": true,
+      "size_bytes": 63830
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\a01_deployed.SLDASM",
+      "exists": true,
+      "size_bytes": 146258
+    },
+    {
+      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\deliverables\\a02_folded.SLDASM",
+      "exists": true,
+      "size_bytes": 150745
+    }
+  ],
+  "checks": {
+    "model_available": true,
+    "previews_created": true,
+    "previews_not_blank": true,
+    "expected_outputs_exist": true,
+    "feature_summary_available": true,
+    "geometry_measurements_available": false,
+    "geometry_measurements_error_free": false
+  },
+  "review_notes": [
+    "人工或视觉模型仍需检查预览图中的主体、比例、方向、关键部件、重叠/悬空问题。",
+    "若 previews_not_blank 为 false，优先检查视图缩放、模型是否为空、SaveBMP 是否成功。",
+    "若 expected_outputs_exist 为 false，优先检查保存/导出路径和 COM 错误码。"
+  ],
+  "evaluation": {
+    "status": "pass",
+    "score": 100,
+    "issues": [],
+    "recommendations": [],
+    "manual_review_required": true,
+    "manual_review_reason": "规则评分只能发现明显失败，最终几何是否符合用户意图仍需查看预览图或截图。"
+  },
+  "summary_path": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\04-phone-stand\\previews\\a01_deployed_review_summary.md"
+}
