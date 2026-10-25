@@ -325,8 +325,11 @@ py -3.12 "<skill>\scripts\sw_three_view.py" \
 出图后先看 `_drawing_report.json`：
 
 - `sheet_setup.sheet_size_verified` 必须为 `true`，A3 的 `actual_size_m` 必须是
-  `[0.42, 0.297]`。SW2023 的纸型码：A4=6、A3=8、A2=9、A1=10、A0=11；
-  `SetupSheet6`/`NewSheet4` 第 3 个参数 `TemplateIn` 必须同码，否则图幅不变。
+  `[0.42, 0.297]`；还要看 `sheet_setup.sheet_scale_verified`（视图建完后重设比例）。
+  SW2023 的纸型码：A4=6、A3=8、A2=9、A1=10、A0=11。
+  `SetupSheet6`/`NewSheet4` 第 3 个参数 `TemplateIn` 通常与纸型同码；
+  **但传入 `.slddrt` 时必须传 12**，图幅仍由 `PaperSize` 决定。
+  传图幅码时调用仍返回 `True`、图幅也对，但 PDF 会丢图框/标题栏/尺寸线。
 - `structure.dimension_count` 为 0 时，回模型给草图/孔补
   `auto_dimension_sketch()`；直接 `CreateLine/CreateCircle` 不会生成尺寸。
 - `preview.not_blank` 必须为 `true`，并打开 PNG 目视检查布局。

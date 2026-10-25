@@ -54,13 +54,22 @@ py -3.12 "<skill>\scripts\sw_three_view.py" \
 | `<part>_drawing_report.json` | 视图数、尺寸数、布局、审查结果 |
 
 脚本内部顺序：读包围盒 → 规划布局（第一角）→ 找 GB 图幅模板 → `SetupSheet6` →
-创建三视图 → 插尺寸 → 保存 → 导出 PDF → 渲染 PNG → 结构审查。
+创建三视图 → **再设一次 `SetupSheet6`（恢复图面比例）** → 插尺寸 → 去重 →
+重排尺寸 → 保存 → 导出 PDF → 渲染 PNG → 结构审查。
 
-> **SW2023 图幅码（实测）**：A4=6、A3=8、A2=9、A1=10、A0=11。
+> **SW2023 图幅码（实测）**：A4=6、A3=8、A2=9、A1=10、A0=11；自定义=12。
 > `SetupSheet6(Name, PaperSize, TemplateIn, ...)` 的第 3 个参数 `TemplateIn`
-> 必须与 `PaperSize` 同码；传 12（自定义）且宽高为 0 时图幅不会变化。
-> 脚本已回读 `Sheet.GetProperties()` 校验实际宽高，报告字段
-> `sheet_setup.sheet_size_verified` / `actual_size_m`。
+> **传入 `.slddrt` 时必须为 12**（`swDwgTemplateCustom`），图幅大小仍由
+> `PaperSize` 决定。传图幅码（A3=8）时调用也返回 `True`、图幅也正确，
+> 但 PDF 会丢图框线、标题栏和尺寸线——这是“标题栏消失”的真正原因，
+> 不是“重设比例会丢标题栏”。只有不传 `.slddrt` 时才让 `TemplateIn` 与
+> `PaperSize` 同码。
+>
+> 创建视图（`CreateDrawViewFromModelView3`）会把图面比例重置为 1:1，
+> 而标题栏“比例”格跟随图面比例。必须在视图创建完成后补设一次，
+> 并回读 `GetProperties2()`：尺寸在第 6/7 项（`props[5:7]`），
+> 比例在第 3/4 项（`props[2:4]`）。报告字段
+> `sheet_setup.sheet_size_verified` / `sheet_scale_verified`。
 
 ## 4. 布局规则（脚本已实现，人工复核用）
 
@@ -99,8 +108,12 @@ py -3.12 "<skill>\scripts\sw_three_view.py" \
    - 主要特征：孔径、孔深、凸台直径/高度、槽宽/长。
    - 定位：孔距、边距、中心高。
    - 标准件：螺纹规格、沉孔/沉头规格。
-4. 不要重复标注同一尺寸；不要用长引线替代尺寸链。
-5. 尺寸文字避免压线、压中心线、侵入标题栏；用 `auto_arrange_drawing_dimensions()` 初排后再目视微调。
+4. 导入后必须**去重**：`InsertModelAnnotations3` 会把同一模型尺寸插进多个视图，
+   `DuplicateDims=False` 也挡不住跨视图重复。技能用 `FullName` 去重 + `EditDelete`
+   删除多余显示尺寸（实测 10 → 4）；删的是图纸显示尺寸，不动模型。
+5. 尺寸文字避免压线、压中心线、侵入标题栏；用
+   `arrange_dimension_positions()` 摆到规划视图框外侧（不要用 `GetOutline()`，
+   它多算约 6 mm 边框），多列时错开半个行距，避免引出线共线；最后目视微调。
 
 ## 5.5 工程图是零件的派生物（document discipline）
 
@@ -146,16 +159,21 @@ COM 可写模型自定义属性；标题栏字段若已链接属性，会自动�
 1. `report["status"] == "pass"`，且 `view_count >= 3`。
 2. `sheet_setup.sheet_size_verified == True`，且 `actual_size_m` 与所选图幅一致
    （A3 = `[0.42, 0.297]`）。`configured == True` 不代表图幅真的变了。
-3. `dimension_count` 符合预期（见第 5 节）。
-4. 预览 PNG 非空白（`preview.not_blank == True`）。
-5. 打开 PDF/PNG 目视：
+3. `sheet_setup.sheet_scale_verified == True`，`actual_scale` 与 `layout.scale_ratio`
+   一致；标题栏“比例”格同步（PDF 文字里应能读到 `2:1`）。
+4. `dimension_count` 符合预期（见第 5 节）；`dimension_dedupe.status == "pass"`
+   且 `after == unique_dimension_count`。
+5. `dimension_placement.status == "pass"`（或已退回官方排列并目视确认）。
+6. 预览 PNG 非空白（`preview.not_blank == True`）。
+7. 打开 PDF/PNG 目视：
    - 三视图方向正确（第一角：俯视图在下、左视图在右）。
    - 长对正/高平齐/宽相等。
    - 轮廓完整，无缺失特征、无多余线。
-   - 尺寸不重叠、不压线、不侵入标题栏。
-6. 视图比例一致；标题栏比例与视图 `ScaleRatio` 一致。
-7. `.SLDDRW` 能重新打开；PDF 页数与图纸数一致。
-8. **PDF 机器检查通过**（见 §7.5）；`pdf_check.status` 为 `fail` 时不许写“出图完成”。
+   - 尺寸不重叠、不压线、不侵入标题栏；并排尺寸的引出线不共线。
+8. 视图比例一致；标题栏比例与视图 `ScaleRatio` 一致。
+9. `.SLDDRW` 能重新打开；PDF 页数与图纸数一致。
+10. **PDF 机器检查通过**（见 §7.5）：`pdf_check.status == "pass"`；
+    `fail` 或 `skipped/not_run` 都不许写“出图完成”。
 
 ## 7.5 PDF 机器检查（`scripts/check_drawing_pdf.py`）
 
@@ -179,6 +197,11 @@ py -3.12 "<skill>\scripts\check_drawing_pdf.py" "<workdir>\drawing\bracket.pdf" 
 | `VIEW_OVERLAP` | 视图轮廓互相重叠 | 调整视图位置，检查第一角布局 |
 | `DIM_COUNT_MISMATCH` | PDF 尺寸数与报告不一致 | 以 PDF 为准，查结构采集或重跑出图 |
 | `SHEET_NOT_VERIFIED` | 报告里 `sheet_size_verified` 非 true | 按失败分支重设图幅 |
+| `SHEET_SCALE_UNVERIFIED` | 报告缺 `actual_scale` 或读不出 | 重跑出图，检查 `GetProperties2` 回读 |
+| `SHEET_SCALE_MISMATCH` | 图面比例 ≠ 规划比例 | 视图创建后补设 `SetupSheet6` |
+| `VIEW_SCALE_MISMATCH` | 视图比例与规划不一致 | 检查 `_apply_view_layout`；轴测/局部视图允许不同 |
+| `TITLE_SCALE_MISMATCH` | PDF 标题栏读不到规划比例 | 确认 `TemplateIn=12` 且比例在视图创建后重设 |
+| `TITLE_SCALE_UNVERIFIED` | PDF 里没找到比例文字 | 目视标题栏；模板可能未链接比例字段 |
 
 已知限制（必须知道）：只认矢量 PDF；视图按最粗线宽识别；**不检查尺寸链是否完整、
 基准是否合理**——那部分仍按 `drawing-standards.md` 人工自检。机器通过不等于图纸合格，
@@ -199,6 +222,10 @@ py -3.12 "<skill>\scripts\check_drawing_pdf.py" "<workdir>\drawing\bracket.pdf" 
 | `DIM_FLOATING` / `OUT_OF_FRAME` | 尺寸被排到视图外或图框外 | 缩小比例、重排视图；仍失败就减少自动尺寸，改标关键尺寸 |
 | `VIEW_OVERLAP` | 视图间距不足或布局参数被覆盖 | 检查 `layout.views` 坐标；按第一角规则重排，间距 ≥18 mm |
 | 图纸打开是空白 | 模板/图框问题 | 换模板；检查 `SetupSheet6` 返回值 |
+| PDF 丢图框/标题栏/尺寸线 | `SetupSheet6` 传了 `.slddrt` 但 `TemplateIn` 用图幅码 | 改传 12（`swDwgTemplateCustom`），图幅仍由 `PaperSize` 决定 |
+| 标题栏比例仍是 1:1 | 创建视图把图面比例重置了 | 所有视图创建完再调一次 `SetupSheet6`，回读 `props[2:4]` |
+| 同一尺寸在多视图重复 | `InsertModelAnnotations3` 跨视图插入 | 按 `IDimension.FullName` 去重，`Select2` + `EditDelete` |
+| 并排尺寸引出线共线 | 两列放在同一高度 | 错开半行距（约 4.5 mm），用规划视图框而非 `GetOutline()` 定位 |
 
 ## 9. 手工兜底流程（脚本不可用时）
 

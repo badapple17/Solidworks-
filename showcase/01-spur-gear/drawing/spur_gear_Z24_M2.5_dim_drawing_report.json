@@ -1,16 +1,16 @@
 {
   "status": "pass",
-  "part": "C:\\Users\\yushe\\Desktop\\skill训练区\\spur_gear_demo_20261024\\spur_gear_Z24_M2.5_dim.SLDPRT",
+  "part": "C:\\Users\\yushe\\Desktop\\skill训练区\\_ext_refs\\mine\\showcase\\01-spur-gear\\spur_gear_Z24_M2.5_dim.SLDPRT",
   "paper": "A3",
   "projection": "first",
   "outputs": {
     "slddrw": {
-      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\spur_gear_demo_20261024\\drawing_three_view\\spur_gear_Z24_M2.5_dim.SLDDRW",
+      "path": "C:\\Users\\yushe\\AppData\\Local\\Temp\\gear_run4\\spur_gear_Z24_M2.5_dim.SLDDRW",
       "saved": true,
       "exists": true
     },
     "pdf": {
-      "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\spur_gear_demo_20261024\\drawing_three_view\\spur_gear_Z24_M2.5_dim.pdf",
+      "path": "C:\\Users\\yushe\\AppData\\Local\\Temp\\gear_run4\\spur_gear_Z24_M2.5_dim.pdf",
       "exported": true,
       "exists": true
     }
@@ -78,18 +78,20 @@
       }
     ]
   },
-  "sheet_setup": {
+  "sheet_setup_initial": {
     "configured": true,
     "sheet_size_verified": true,
+    "sheet_scale_verified": true,
     "sheet_name": "图纸1",
     "paper_properties": [
       8.0,
-      8.0,
-      1.0,
+      12.0,
+      2.0,
       1.0,
       1.0,
       0.42,
-      0.297
+      0.297,
+      1.0
     ],
     "actual_size_m": [
       0.42,
@@ -99,6 +101,15 @@
       0.42,
       0.297
     ],
+    "requested_scale": [
+      2,
+      1
+    ],
+    "actual_scale": [
+      2.0,
+      1.0
+    ],
+    "template_in": 12,
     "error_code": null
   },
   "view_creation": {
@@ -161,64 +172,159 @@
     "failures": [],
     "view_count": 3
   },
+  "sheet_setup": {
+    "configured": true,
+    "sheet_size_verified": true,
+    "sheet_scale_verified": true,
+    "sheet_name": "图纸1",
+    "paper_properties": [
+      8.0,
+      12.0,
+      2.0,
+      1.0,
+      1.0,
+      0.42,
+      0.297,
+      1.0
+    ],
+    "actual_size_m": [
+      0.42,
+      0.297
+    ],
+    "expected_size_m": [
+      0.42,
+      0.297
+    ],
+    "requested_scale": [
+      2,
+      1
+    ],
+    "actual_scale": [
+      2.0,
+      1.0
+    ],
+    "template_in": 12,
+    "error_code": null
+  },
   "dimension_insertion": {
     "returned": true,
     "type": "<class 'tuple'>"
   },
-  "dimension_arrangement": {
+  "dimension_dedupe": {
     "status": "pass",
-    "stage": "arrange",
-    "method": "IModelDocExtension.AlignDimensions",
-    "mode": "auto_arrange",
-    "enum_value": 0,
-    "spacing_m": 0.01,
-    "views": [
+    "method": "IDimension.FullName + IModelDoc2.EditDelete",
+    "before": 10,
+    "after": 4,
+    "unique_dimension_count": 4,
+    "removed_count": 6,
+    "removed": [
       {
-        "sheet": "图纸1",
-        "view": "工程图视图1",
-        "dimension_count": 2,
-        "selected_count": 2,
-        "attempted": true,
-        "aligned": true,
-        "error": null
-      },
-      {
-        "sheet": "图纸1",
+        "dimension": "D1@草图2@spur_gear_Z24_M2.5_dim.Part",
         "view": "工程图视图2",
-        "dimension_count": 4,
-        "selected_count": 4,
-        "attempted": true,
-        "aligned": true,
-        "error": null
+        "selected": true,
+        "deleted": true
       },
       {
-        "sheet": "图纸1",
+        "dimension": "D2@草图2@spur_gear_Z24_M2.5_dim.Part",
+        "view": "工程图视图2",
+        "selected": true,
+        "deleted": true
+      },
+      {
+        "dimension": "D1@01_GEAR_BODY_Z24_M2.5_PA20@spur_gear_Z24_M2.5_dim.Part",
         "view": "工程图视图3",
-        "dimension_count": 4,
-        "selected_count": 4,
-        "attempted": true,
-        "aligned": true,
-        "error": null
+        "selected": true,
+        "deleted": true
+      },
+      {
+        "dimension": "D1@草图2@spur_gear_Z24_M2.5_dim.Part",
+        "view": "工程图视图3",
+        "selected": true,
+        "deleted": true
+      },
+      {
+        "dimension": "D2@草图2@spur_gear_Z24_M2.5_dim.Part",
+        "view": "工程图视图3",
+        "selected": true,
+        "deleted": true
+      },
+      {
+        "dimension": "D1@02_HUB_D36_BORE_D20@spur_gear_Z24_M2.5_dim.Part",
+        "view": "工程图视图3",
+        "selected": true,
+        "deleted": true
       }
     ],
-    "selected_dimension_count": 10,
-    "aligned_view_count": 3,
-    "manual_review_required": true,
-    "retryable": false,
-    "error_code": null,
-    "limitations": [
-      "官方排列接口不返回文字包围盒；排列后仍需 PDF/BMP 目视复核。"
-    ]
+    "error_code": null
+  },
+  "dimension_placement": {
+    "status": "pass",
+    "method": "IAnnotation.SetPosition",
+    "offset_m": 0.01,
+    "column_gap_m": 0.012,
+    "placed_count": 4,
+    "verified_count": 4,
+    "views": [
+      {
+        "view": "工程图视图1",
+        "dimension_count": 2,
+        "side": "left",
+        "columns": 2,
+        "rows": 1,
+        "status": "pass",
+        "placed": [
+          {
+            "text": "",
+            "x_m": 0.106,
+            "y_m": 0.21625,
+            "verified": true,
+            "error": null
+          },
+          {
+            "text": "",
+            "x_m": 0.094,
+            "y_m": 0.21175,
+            "verified": true,
+            "error": null
+          }
+        ]
+      },
+      {
+        "view": "工程图视图2",
+        "dimension_count": 2,
+        "side": "left",
+        "columns": 2,
+        "rows": 1,
+        "status": "pass",
+        "placed": [
+          {
+            "text": "",
+            "x_m": 0.106,
+            "y_m": 0.11325,
+            "verified": true,
+            "error": null
+          },
+          {
+            "text": "",
+            "x_m": 0.094,
+            "y_m": 0.10875,
+            "verified": true,
+            "error": null
+          }
+        ]
+      }
+    ],
+    "error_code": null
   },
   "preview": {
     "rendered": true,
-    "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\spur_gear_demo_20261024\\drawing_three_view\\spur_gear_Z24_M2.5_dim_drawing_preview.png",
-    "dark_pixel_ratio": 0.02666,
+    "path": "C:\\Users\\yushe\\AppData\\Local\\Temp\\gear_run4\\spur_gear_Z24_M2.5_dim_drawing_preview.png",
+    "dark_pixel_ratio": 0.040859,
     "not_blank": true
   },
   "structure": {
     "view_count": 3,
-    "dimension_count": 10,
+    "dimension_count": 4,
     "views": [
       {
         "sheet": "图纸1",
@@ -285,7 +391,7 @@
       {
         "id": "drawing-dimension-boxes",
         "status": "warning",
-        "message": "原生边界 0/10，保守估算 10/10"
+        "message": "原生边界 0/4，保守估算 4/4"
       },
       {
         "id": "drawing-dimension-estimate-provenance",
@@ -300,7 +406,7 @@
       {
         "id": "drawing-layout-collisions",
         "status": "warning",
-        "message": "确认碰撞 0 项，估算风险 6 项"
+        "message": "确认碰撞 0 项，估算风险 2 项"
       },
       {
         "id": "drawing-pixel-preview",
@@ -325,21 +431,6 @@
         "confirmed_collision": false
       },
       {
-        "code": "DRAWING_DIMENSION_OTHER_VIEW_INTRUSION",
-        "severity": "warning",
-        "first": {
-          "kind": "dimension",
-          "name": "D1@草图2@spur_gear_Z24_M2.5_dim-1@工程图视图1"
-        },
-        "second": {
-          "kind": "view",
-          "name": "工程图视图3"
-        },
-        "evidence_source": "estimated",
-        "confidence": "low",
-        "confirmed_collision": false
-      },
-      {
         "code": "DRAWING_DIMENSION_TEXT_OVERLAP",
         "severity": "warning",
         "first": {
@@ -353,59 +444,14 @@
         "evidence_source": "estimated",
         "confidence": "low",
         "confirmed_collision": false
-      },
-      {
-        "code": "DRAWING_DIMENSION_TEXT_OVERLAP",
-        "severity": "warning",
-        "first": {
-          "kind": "dimension",
-          "name": "D1@草图2@spur_gear_Z24_M2.5_dim-2@工程图视图2"
-        },
-        "second": {
-          "kind": "dimension",
-          "name": "D2@草图2@spur_gear_Z24_M2.5_dim-2@工程图视图2"
-        },
-        "evidence_source": "estimated",
-        "confidence": "low",
-        "confirmed_collision": false
-      },
-      {
-        "code": "DRAWING_DIMENSION_TEXT_OVERLAP",
-        "severity": "warning",
-        "first": {
-          "kind": "dimension",
-          "name": "D1@01_GEAR_BODY_Z24_M2.5_PA20@spur_gear_Z24_M2.5_dim-3@工程图视图3"
-        },
-        "second": {
-          "kind": "dimension",
-          "name": "D1@02_HUB_D36_BORE_D20@spur_gear_Z24_M2.5_dim-3@工程图视图3"
-        },
-        "evidence_source": "estimated",
-        "confidence": "low",
-        "confirmed_collision": false
-      },
-      {
-        "code": "DRAWING_DIMENSION_TEXT_OVERLAP",
-        "severity": "warning",
-        "first": {
-          "kind": "dimension",
-          "name": "D1@草图2@spur_gear_Z24_M2.5_dim-3@工程图视图3"
-        },
-        "second": {
-          "kind": "dimension",
-          "name": "D2@草图2@spur_gear_Z24_M2.5_dim-3@工程图视图3"
-        },
-        "evidence_source": "estimated",
-        "confidence": "low",
-        "confirmed_collision": false
       }
     ],
     "evidence_summary": {
-      "dimension_count": 10,
+      "dimension_count": 4,
       "native_dimension_box_count": 0,
-      "estimated_dimension_box_count": 10,
+      "estimated_dimension_box_count": 4,
       "confirmed_collision_count": 0,
-      "estimated_collision_risk_count": 6,
+      "estimated_collision_risk_count": 2,
       "pixel_preview_available": false,
       "estimated_evidence_is_native": false
     },
@@ -413,5 +459,24 @@
     "retryable": true,
     "error_code": "DRAWING_LAYOUT_ESTIMATED_COLLISION_RISK"
   },
-  "report_path": "C:\\Users\\yushe\\Desktop\\skill训练区\\spur_gear_demo_20261024\\drawing_three_view\\spur_gear_Z24_M2.5_dim_drawing_report.json"
+  "pdf_check": {
+    "status": "pass",
+    "findings": [],
+    "thresholds": {
+      "margin_mm": 10.0,
+      "title_block_mm": [
+        180.0,
+        56.0
+      ],
+      "leader_gap_mm": 3.0,
+      "view_gap_mm": 25.0
+    },
+    "limitations": [
+      "只检查 SolidWorks 导出的矢量 PDF；扫描件或文字被轮廓化时无法识别尺寸文字。",
+      "视图按最粗线宽识别；模板若用同等粗线画表格，需要人工复核 view_count。",
+      "不判断尺寸链是否完整、基准是否合理；那部分按 drawing-standards.md §8 人工自检。"
+    ],
+    "note": "机器初筛，不替代目视；只认 SolidWorks 导出的矢量 PDF。"
+  },
+  "report_path": "C:\\Users\\yushe\\AppData\\Local\\Temp\\gear_run4\\spur_gear_Z24_M2.5_dim_drawing_report.json"
 }

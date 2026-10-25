@@ -148,7 +148,9 @@
       "limitations": [
         "仅导入模型中已存在且标记为工程图的 DisplayDimension；模型缺少尺寸时先自动标注草图或补齐参数尺寸",
         "本机 SW2023 实测：001 连杆出图导入 23 个尺寸，含 φ25/φ15/φ12/φ8",
-        "自动排列只做初排，仍需人工检查位置、重叠和尺寸链完整性"
+        "自动排列只做初排，仍需人工检查位置、重叠和尺寸链完整性",
+        "InsertModelAnnotations3 的第 3 参数是 AllViews；DuplicateDims=False 仍会产生跨视图重复（齿轮图实测 10 个显示尺寸 → 4 个唯一），必须按 IDimension.FullName 去重",
+        "尺寸摆放用规划视图框，不用 IView.GetOutline（含约 6 mm 边框）；并排两列需错开半行距，避免引出线共线"
       ],
       "allowed_modes": [
         "interactive",
@@ -176,6 +178,8 @@
       "limitations": [
         "本机 SW2023 实测：A3 420×297 第一角、前/俯/左/等轴测 4 视图、23 个模型尺寸、SLDDRW+PDF+PNG、报告 pass",
         "必须回读 sheet_setup.sheet_size_verified 与 actual_size_m；configured=true 不代表图幅生效",
+        "SetupSheet6 传 .slddrt 时 TemplateIn 必须为 12，传图幅码会丢图框/标题栏/尺寸线",
+        "CreateDrawViewFromModelView3 会把图面比例重置为 1:1；视图建完后须补设并回读 sheet_scale_verified，否则标题栏比例与视图不符",
         "视图名必须用 GetModelViewNames() 解析本机中文名（*前视/*上视/*左视/*等轴测），英文名无效",
         "尺寸只导入模型已有显示尺寸；自动排布后仍需人工目视检查重叠与压线"
       ],

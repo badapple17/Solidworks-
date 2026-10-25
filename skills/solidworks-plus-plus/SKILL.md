@@ -135,15 +135,21 @@ py -3.12 "<skill>\scripts\sw_three_view.py" \
 1. `report["status"]` 为 `pass`，视图数 ≥ 3。
 2. `report["sheet_setup"]["sheet_size_verified"]` 为 `true`，
    且 `actual_size_m` 与所选图幅一致（A3 = 0.420×0.297）。**不要只看 `configured: true`**。
-3. `dimension_count > 0`；为 0 时回模型给草图/孔补尺寸（`auto_dimension_sketch`），
+3. `report["sheet_setup"]["sheet_scale_verified"]` 为 `true`，`actual_scale` 等于
+   `layout.scale_ratio`；标题栏“比例”格同步（PDF 里应读到同一比值）。
+4. `dimension_count > 0`；为 0 时回模型给草图/孔补尺寸（`auto_dimension_sketch`），
    不要说“已自动标注”。API 直接画线不会产生尺寸。
-4. 预览 PNG 非空白，且目视确认：第一角布局（俯视图在下、左视图在右）、
+5. `dimension_dedupe.status == "pass"` 且 `after == unique_dimension_count`；
+   `dimension_placement.status == "pass"`（并排尺寸引出线不得共线）。
+6. 预览 PNG 非空白，且目视确认：第一角布局（俯视图在下、左视图在右）、
    长对正/高平齐/宽相等、尺寸不重叠、不侵入标题栏。
-5. 跑 PDF 机器检查（`report["pdf_check"]`，或单独执行
+7. 跑 PDF 机器检查（`report["pdf_check"]`，或单独执行
    `py -3.12 "<skill>\scripts\check_drawing_pdf.py" "<workdir>\drawing\part.pdf" --report "<workdir>\drawing\part_drawing_report.json"`）：
    `DIM_NO_LEADER`（尺寸文字没有引出线/尺寸线）、`DIM_FLOATING`（离视图太远）、
-   `OUT_OF_FRAME`（越出图框）、`VIEW_OVERLAP` 都是 fail——修图或如实披露，不许瞒。
-6. 保留 `.SLDDRW`，不要只交 PDF。
+   `OUT_OF_FRAME`（越出图框）、`VIEW_OVERLAP`、`SHEET_SCALE_MISMATCH`、
+   `VIEW_SCALE_MISMATCH`、`TITLE_SCALE_MISMATCH` 都是 fail——修图或如实披露，不许瞒；
+   `pdf_check.status` 为 `skipped` 时按 not_run 处理，不算通过。
+8. 保留 `.SLDDRW`，不要只交 PDF。
 
 详细验收与失败分支见 `references/part-to-drawing.md`。
 
@@ -158,8 +164,8 @@ py -3.12 "<skill>\scripts\sw_three_view.py" \
 | 特征 | 关键特征存在、无重建错误 | `ForceRebuild3(False)` + 特征树 |
 | 孔 | 孔径/孔位与图纸一致 | `collect_geometry_measurements()` |
 | 视觉 | 四视图预览方向、比例、特征正确 | `run_review()` 导出的 BMP |
-| 图纸 | 视图数、尺寸数、布局、PDF | `_drawing_report.json` + PDF 首屏 |
-| 图纸 PDF | `check_drawing_pdf.py` 无 fail（悬空尺寸、无引出线、越界、视图重叠） | `pdf_check` 报告或独立检查输出 |
+| 图纸 | 视图数、尺寸数、布局、比例、PDF | `_drawing_report.json` + PDF 首屏 |
+| 图纸 PDF | `pdf_check.status == "pass"`（悬空尺寸、无引出线、越界、视图重叠、比例不一致） | `pdf_check` 报告或独立检查输出 |
 | 流程 | 任务卡过 `check_task_card.py`；交付时 handoff 证据齐全 | `task_card.json` + 检查输出 |
 
 ```python

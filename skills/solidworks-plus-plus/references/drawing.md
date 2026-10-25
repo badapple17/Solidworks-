@@ -58,21 +58,54 @@ view.ScaleRatio = VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, [2.0, 1.0])  # 2
 
 `IView.Position` 同理，也必须传 VARIANT(VT_ARRAY|VT_R8)。
 
+### 图纸比例与标题栏（SW2023 实测，2026-10-25）
+
+```python
+sheet = drawing.GetCurrentSheet()
+ok = drawing.SetupSheet6(
+    sheet.GetName(), paper_code,
+    12,              # TemplateIn：传入 .slddrt 时必须是 swDwgTemplateCustom=12
+    2.0, 1.0,        # Scale1, Scale2
+    True,            # FirstAngle
+    r"...\a3 - gb.slddrt",
+    0.0, 0.0, "", False, 0.0, 0.0, 0.0, 0.0, 0, 0)
+props = list(sheet.GetProperties2())
+# [paper_size, template_in, scale1, scale2, first_angle, width, height, same_custom_prop]
+actual_size = props[5:7]     # 米；A3 = [0.42, 0.297]
+actual_scale = props[2:4]    # 2:1 = [2.0, 1.0]
+```
+
+两条硬规则：
+
+1. **`TemplateIn` 必须传 12**，不能传图幅码（A3=8）。传 8 时 `SetupSheet6`
+   仍返回 `True`，图幅也正确，但导出的 PDF 会**丢掉图框线、标题栏和尺寸线**
+   （实测空白图导出 0 条矢量路径）。这是“标题栏消失”的真正原因。
+2. **创建视图会把图面比例重置为 1:1**，标题栏“比例”格跟随图面比例。
+   因此必须在**所有视图（含轴测图）创建完成后**再调用一次 `SetupSheet6`，
+   并把这次 `GetProperties2` 回读作为 `sheet_setup` 的最终证据。
+
 ## 尺寸标注
 
 ### 自动标注（模型项目）
 
 ```python
 drawing.InsertModelAnnotations3(
-    InsertType,    # int: 0=整个模型
-    AnnotationType, # int: 32768=标记为工程图的模型尺寸
-    DuplicateDims, # bool
-    AutoArrange,   # bool
-    UseDoc,        # bool
-    UseView        # bool
+    Option,              # int: 0=整个模型（插入范围）
+    Types,               # int: 32768=标记为工程图的模型尺寸
+    AllViews,            # bool: 是否插入到所有视图
+    DuplicateDims,       # bool: 是否允许重复尺寸
+    HiddenFeatureDims,   # bool: 是否含隐藏特征尺寸
+    UsePlacementInSketch # bool: 是否沿用草图里的放置位置
 )
 ```
 
+> 签名以本机 `sldworks.tlb` 为准（SW2023）。旧文档里写成
+> `(InsertType, AnnotationType, DuplicateDims, AutoArrange, UseDoc, UseView)`
+> 是错的：第 3 个参数是 `AllViews`，第 4 个才是 `DuplicateDims`。
+> 2026-10-25 用齿轮图实测：`AllViews=True, DuplicateDims=False` 仍会在
+> 前/左视图各插一份同一模型尺寸；`DuplicateDims=False` 只约束同一视图内。
+> 跨视图重复必须按 `IDimension.FullName` 去重后删除（见下节）。
+>
 > SW2024/2026 的动态 pywin32 代理通常把 `InsertModelAnnotations3` 暴露在工程图
 > `IModelDoc2` 上，而不是 `IModelDocExtension`。技能脚本会先尝试文档对象，
 > 再兼容旧的 Extension 代理。`32` 是几何公差，`32768` 才是标记为工程图
@@ -87,6 +120,43 @@ drawing.InsertModelAnnotations3(
 > SW2026 SP01.1 已连续三次回读 3 个真实视图和 6 个真实尺寸实体。
 > 完整工程图交付仍属于 `drawings_and_bom=pilot`，因为尺寸布局、孔槽定位链、
 > 图框、标题栏和 BOM 需要人工目视复核。
+
+### 跨视图去重与尺寸摆放（SW2023 实测）
+
+**去重**：同一个模型尺寸在前视、左视各插一份，`FullName` 相同，删一份不影响模型。
+
+```python
+for view in sheet.GetViews():
+    for dd in view.GetDisplayDimensions():
+        dim = dd.GetDimension()
+        key = dim.FullName          # 例：D1@草图2@part.Part
+        if key in seen:
+            dd.GetAnnotation().Select2(False, 0)
+            drawing.EditDelete()    # 删的是工程图显示尺寸，不是模型尺寸
+        else:
+            seen.add(key)
+```
+
+实测 10 个显示尺寸 → 4 个唯一尺寸；删除后模型和其余视图不受影响。
+`DuplicateDims=False` 不能替代这一步。
+
+**摆放**：用建模时规划的视图框（`layout["views"][i]["box"]`）定位，不要用
+`IView.GetOutline()`——它把视图边框算进去，左边缘比真实几何多约 6 mm，
+按它偏移 24 mm 会把尺寸推到 PDF 检查器 25 mm 的“悬浮”阈值之外。
+
+```python
+annotation.SetPosition(x, y, 0.0)                  # 米
+pos = annotation.GetPosition()                     # 必须回读校验
+```
+
+同一视图有多个尺寸时：视图中心在纸面左半 → 放左侧，否则放右侧；
+两列间距 12 mm、第一列距视图 10 mm（第二列 22 mm，仍在 25 mm 悬浮阈值内）。
+**并排两列要错开半个行距（约 4.5 mm）**：否则水平引出线会沿同一条中心线重叠
+（实测 φ20/φ36 共线）；列距只有 8 mm 时旋转数字仍会跨列压字
+（001 连杆实测 30/25、10/15，PDF 检查报 `TEXT_OVERLAP`）。
+
+> `IDisplayDimension.GetText(0)` 对导入的模型尺寸返回空串，PDF 里却能正常显示数值；
+> 不要用它判断“尺寸没有文字”，也不要拿它当尺寸值证据。
 
 ### SW2026 尺寸文字边界证据
 

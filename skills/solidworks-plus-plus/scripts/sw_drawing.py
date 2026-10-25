@@ -764,6 +764,207 @@ def add_detail_view(drawing_model, x, y, scale=2.0):
     return drawing_model.CreateDetailViewAt4(x, y, 0, 0, scale, 0, "")
 
 
+def remove_duplicate_dimensions(drawing_model) -> dict:
+    """@brief 同一模型尺寸跨视图重复显示时，只保留第一个视图中的显示。
+
+    SW2023 实测：InsertModelAnnotations3 的 DuplicateDims=False 只约束同一视图内的
+    重复，AllViews=True 时同一尺寸仍会出现在多个视图（齿轮案例 4 个尺寸变成 10 个）。
+    这里按模型尺寸 FullName 去重，删除多余显示；删的是图纸里的 DisplayDimension，
+    不改模型尺寸（IModelDoc2.EditDelete 已用可写副本实测）。
+    """
+    sheet = _safe_member(drawing_model, "GetCurrentSheet")
+    views = _as_sequence(_safe_member(sheet, "GetViews", default=[]))
+    keep: dict[str, str] = {}
+    removed = []
+    before = 0
+    for view in views:
+        view_name = str(_safe_member(view, "Name", default="") or "")
+        for dimension in _view_display_dimensions(view):
+            before += 1
+            model_dimension = _safe_member(dimension, "GetDimension")
+            key = (
+                str(_safe_member(model_dimension, "FullName", default="") or "")
+                or str(_safe_member(dimension, "GetNameForSelection", default="") or "")
+            )
+            if not key:
+                continue
+            if key not in keep:
+                keep[key] = view_name
+                continue
+            annotation = _safe_member(dimension, "GetAnnotation")
+            selected = False
+            if annotation is not None:
+                try:
+                    selected = bool(get_com_member(annotation, "Select2", False, 0))
+                except Exception:
+                    try:
+                        selected = bool(get_com_member(annotation, "Select", False))
+                    except Exception:
+                        selected = False
+            deleted = False
+            if selected:
+                try:
+                    get_com_member(drawing_model, "EditDelete")
+                    deleted = True
+                except Exception:
+                    deleted = False
+            removed.append({
+                "dimension": key,
+                "view": view_name,
+                "selected": selected,
+                "deleted": deleted,
+            })
+    _safe_member(drawing_model, "ClearSelection2", True)
+    _safe_member(drawing_model, "ForceRebuild3", False)
+    _safe_member(drawing_model, "GraphicsRedraw2")
+    after = sum(len(_view_display_dimensions(view)) for view in views)
+    failed = [item for item in removed if not item["deleted"]]
+    status = "pass" if after == len(keep) and not failed else "warn"
+    return {
+        "status": status,
+        "method": "IDimension.FullName + IModelDoc2.EditDelete",
+        "before": before,
+        "after": after,
+        "unique_dimension_count": len(keep),
+        "removed_count": len(removed),
+        "removed": removed,
+        "error_code": None if status == "pass" else "DRAWING_DIMENSION_DEDUPE_INCOMPLETE",
+    }
+
+
+def arrange_dimension_positions(drawing_model, *, view_boxes=None, margin_m=0.012,
+                                offset_m=0.010, column_gap_m=0.012,
+                                row_gap_m=0.009) -> dict:
+    """@brief 把插入的模型尺寸移到各自视图外侧，避免越框、压视图和互相压字。
+
+    规则（与图幅无关）：视图中心在纸面左半 → 放视图左侧，否则放右侧；
+    同一视图的尺寸按列排布（默认两列，间距 12 mm），多行时上下居中。
+    第一列距视图 10 mm，第二列 22 mm，都落在 PDF 检查器 25 mm 的“悬浮”阈值内。
+    两列再错开半行距：旋转数字的水平占位约 5 mm、非旋转文字更宽，
+    仅靠 8 mm 列距会压字（001 连杆实测），12 mm 列距 + 半行错列对两种朝向都留余量。
+
+    view_boxes: 与 sheet.GetViews() 同序的规划边界框（left/bottom/right/top，米）。
+    IView.GetOutline 会把视图边框算进去（实测左边缘比真实几何多约 6 mm），
+    直接拿它定偏移会把尺寸推到 25 mm 悬浮阈值之外，所以优先用建模时的布局框。
+    """
+    sheet = _safe_member(drawing_model, "GetCurrentSheet")
+    properties = _as_sequence(_safe_member(sheet, "GetProperties2", default=[]))
+    if len(properties) >= 7:
+        sheet_width, sheet_height = float(properties[5]), float(properties[6])
+    else:
+        size = _as_sequence(_safe_member(sheet, "GetSize", default=[]))
+        if len(size) < 2:
+            return {"status": "blocked", "error_code": "DRAWING_SHEET_SIZE_UNAVAILABLE",
+                    "views": []}
+        sheet_width, sheet_height = float(size[0]), float(size[1])
+
+    results = []
+    placed_total = 0
+    verified_total = 0
+    views = _as_sequence(_safe_member(sheet, "GetViews", default=[]))
+    planned_boxes = list(view_boxes or [])
+    for view_index, view in enumerate(views):
+        view_name = str(_safe_member(view, "Name", default="") or "")
+        dimensions = _view_display_dimensions(view)
+        if not dimensions:
+            continue
+        box = None
+        if view_index < len(planned_boxes):
+            box = _normalise_box(planned_boxes[view_index])
+        if box is None:
+            box = _normalise_box(_safe_member(view, "GetOutline"))
+        if box is None:
+            results.append({"view": view_name, "dimension_count": len(dimensions),
+                            "status": "skipped", "error_code": "DRAWING_VIEW_OUTLINE_UNAVAILABLE"})
+            continue
+
+        center_x = (box["left"] + box["right"]) / 2.0
+        center_y = (box["bottom"] + box["top"]) / 2.0
+        side = "left" if center_x <= sheet_width / 2.0 else "right"
+        needed = offset_m + column_gap_m + 0.01
+        left_room = box["left"] - margin_m
+        right_room = sheet_width - margin_m - box["right"]
+        if side == "left" and left_room < needed <= right_room:
+            side = "right"
+        elif side == "right" and right_room < needed <= left_room:
+            side = "left"
+
+        def text_position(dimension):
+            annotation = _safe_member(dimension, "GetAnnotation")
+            position = _as_sequence(_safe_member(annotation, "GetPosition", default=[]))
+            if len(position) >= 2:
+                try:
+                    return float(position[0]), float(position[1])
+                except (TypeError, ValueError):
+                    pass
+            return 0.0, 0.0
+
+        ordered = sorted(dimensions, key=lambda item: (-text_position(item)[1], text_position(item)[0]))
+        columns = 2 if len(ordered) > 1 else 1
+        rows = math.ceil(len(ordered) / columns)
+        placed = []
+        for index, dimension in enumerate(ordered):
+            column = index % columns
+            row = index // columns
+            if side == "left":
+                x = box["left"] - offset_m - column * column_gap_m
+            else:
+                x = box["right"] + offset_m + column * column_gap_m
+            y = center_y + ((rows - 1) / 2.0 - row) * row_gap_m
+            if columns > 1:
+                # 两列错开半行距：同高时引出线会沿同一条水平线重叠（齿轮 φ20/φ36 实测共线）；
+                # 半行距再配合 12 mm 列距，旋转文字靠水平间隙分开，非旋转文字靠纵向错开，
+                # 两种朝向都不会压字（001 连杆实测 30/25、10/15 在 8 mm 列距下压字）。
+                y += ((columns - 1) / 2.0 - column) * (row_gap_m / 2.0)
+            x = min(max(x, margin_m + 0.004), sheet_width - margin_m - 0.004)
+            annotation = _safe_member(dimension, "GetAnnotation")
+            ok = False
+            error = None
+            if annotation is not None:
+                try:
+                    get_com_member(annotation, "SetPosition", float(x), float(y), 0.0)
+                    position = _as_sequence(_safe_member(annotation, "GetPosition"))
+                    ok = (
+                        len(position) >= 2
+                        and abs(float(position[0]) - x) <= 1e-5
+                        and abs(float(position[1]) - y) <= 1e-5
+                    )
+                except Exception as exc:
+                    error = str(exc)
+            placed_total += 1
+            verified_total += int(ok)
+            placed.append({
+                "text": str(_safe_member(dimension, "GetText", 0, default="") or ""),
+                "x_m": round(x, 6),
+                "y_m": round(y, 6),
+                "verified": ok,
+                "error": error,
+            })
+        results.append({
+            "view": view_name,
+            "dimension_count": len(dimensions),
+            "side": side,
+            "columns": columns,
+            "rows": rows,
+            "status": "pass" if all(item["verified"] for item in placed) else "warn",
+            "placed": placed,
+        })
+    _safe_member(drawing_model, "ForceRebuild3", False)
+    _safe_member(drawing_model, "GraphicsRedraw2")
+    status = "pass" if placed_total and verified_total == placed_total else (
+        "skipped" if not placed_total else "warn")
+    return {
+        "status": status,
+        "method": "IAnnotation.SetPosition",
+        "offset_m": offset_m,
+        "column_gap_m": column_gap_m,
+        "placed_count": placed_total,
+        "verified_count": verified_total,
+        "views": results,
+        "error_code": None if status in {"pass", "skipped"} else "DRAWING_DIMENSION_PLACEMENT_FAILED",
+    }
+
+
 def insert_dimensions(drawing_model, view=None):
     """
     自动标注尺寸（模型项目）

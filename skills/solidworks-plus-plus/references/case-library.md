@@ -68,8 +68,10 @@
 2. **孔没有尺寸**：API 直接画圆不会生成显示尺寸，出图时 φ15/φ8 丢失。
    已在 `create_through_hole()` 内自动调用 `auto_dimension_sketch()`。
 3. **图幅码**：SW2023 的 A3 纸型码是 **8**（不是 6），
-   且 `SetupSheet6` 第 3 个参数 `TemplateIn` 必须同码；否则实际仍是 A4，
+   且不传 `.slddrt` 时 `SetupSheet6` 第 3 个参数 `TemplateIn` 必须同码；否则实际仍是 A4，
    布局按 A3 计算就会裁切。已改为回读 `GetProperties` 校验 0.420×0.297。
+   （2026-10-25 补充：传 `.slddrt` 时 `TemplateIn` 必须为 12，图幅仍由 `PaperSize` 决定；
+   传图幅码的症状是 PDF 丢图框/标题栏/尺寸线，图幅本身却正确。两种失败不要混为一谈。）
 4. **视图角色**：平面轮廓画在 Front Plane 后，生成图的 Front 是平面、Top 是侧剖面，
    与题目图相反。几何正确；交付时说明角色，或用
    `drawing-to-part.md` 的“侧剖面做主视图”路线重做。

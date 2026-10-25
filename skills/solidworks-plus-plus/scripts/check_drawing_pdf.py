@@ -31,12 +31,14 @@ import json
 import math
 import re
 import sys
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 PT_PER_MM = 72.0 / 25.4
 DIMENSION_TEXT = re.compile(r"^[\s∅ØφΦR±+\-xX×°.,:0-9()（）]*\d[\s∅ØφΦR±+\-xX×°.,:0-9()（）]*$")
 GRID_LABEL = re.compile(r"^\s*([1-9]|1[0-9]|[A-H])\s*$")
+SCALE_RATIO = re.compile(r"^\s*(\d+)\s*[:：]\s*(\d+)\s*$")
 
 
 def _box(values) -> list[float]:
@@ -96,6 +98,14 @@ def _path_segments(path: dict[str, Any]) -> list[tuple[float, float, float, floa
     return segments
 
 
+def _mostly_inside(box: list[float], region: list[float], threshold: float = 0.5) -> bool:
+    """@brief 判断路径是否主要落在指定区域内（用于排除标题栏图框线）。"""
+    area = (box[2] - box[0]) * (box[3] - box[1])
+    if area <= 0:
+        return False
+    return _overlap_area(box, region) >= threshold * area
+
+
 def _merge_boxes(boxes: list[list[float]], gap: float) -> list[list[float]]:
     merged = [list(b) for b in boxes]
     changed = True
@@ -114,8 +124,15 @@ def _merge_boxes(boxes: list[list[float]], gap: float) -> list[list[float]]:
     return merged
 
 
-def classify_page(page, *, symbol_max_mm: float = 4.0) -> dict[str, Any]:
-    """把 PDF 页面的矢量路径分成：视图轮廓（粗线）、标注线（细线）、符号小块、图框。"""
+def classify_page(page, *, symbol_max_mm: float = 4.0,
+                  title_block: list[float] | None = None) -> dict[str, Any]:
+    """把 PDF 页面的矢量路径分成：视图轮廓（粗线）、标注线（细线）、符号小块、图框。
+
+    视图轮廓取**最粗**线宽（SW 可见轮廓线），不能取“最粗线的 60%”：
+    尺寸线/尺寸界线通常是次粗线，按 60% 会被误判成视图轮廓，导致
+    DIM_NO_LEADER 假阳性、视图框被尺寸线撑大。
+    标题栏内的模板线也不属于模型视图，单独排除。
+    """
     width, height = float(page.rect.width), float(page.rect.height)
     paths = page.get_drawings()
     max_width = max((float(p.get("width") or 0) for p in paths), default=0.0)
@@ -129,11 +146,13 @@ def classify_page(page, *, symbol_max_mm: float = 4.0) -> dict[str, Any]:
             frame_boxes.append(box)
             continue
         if w <= symbol_max and h <= symbol_max:
-            symbol_paths.append({"box": box})
+            symbol_paths.append({"box": box, "segments": _path_segments(p)})
             continue
         stroke = float(p.get("width") or 0)
         record = {"box": box, "width": stroke, "segments": _path_segments(p)}
-        if max_width > 0 and stroke >= 0.6 * max_width and (w > 10 * PT_PER_MM or h > 10 * PT_PER_MM):
+        is_view_stroke = max_width > 0 and stroke >= 0.95 * max_width
+        in_title_block = bool(title_block and _mostly_inside(box, title_block))
+        if is_view_stroke and not in_title_block and (w > 10 * PT_PER_MM or h > 10 * PT_PER_MM):
             view_paths.append(record)
         else:
             line_paths.append(record)
@@ -156,6 +175,26 @@ def extract_text(page) -> list[dict[str, Any]]:
     return spans
 
 
+def _normalise_ratio(value: Any) -> tuple[int, int] | None:
+    """@brief 把 [2, 1]、"2:1" 等比例统一成既约整数比。"""
+    try:
+        if isinstance(value, (list, tuple)) and len(value) >= 2:
+            numerator, denominator = float(value[0]), float(value[1])
+        elif isinstance(value, str):
+            match = SCALE_RATIO.match(value)
+            if not match:
+                return None
+            numerator, denominator = float(match.group(1)), float(match.group(2))
+        else:
+            return None
+    except (TypeError, ValueError):
+        return None
+    if numerator <= 0 or denominator <= 0:
+        return None
+    ratio = (Fraction(numerator) / Fraction(denominator)).limit_denominator(1000)
+    return ratio.numerator, ratio.denominator
+
+
 def _distance_to_box(box: list[float], other: list[float]) -> float:
     dx = max(other[0] - box[2], box[0] - other[2], 0.0)
     dy = max(other[1] - box[3], box[1] - other[3], 0.0)
@@ -164,14 +203,15 @@ def _distance_to_box(box: list[float], other: list[float]) -> float:
 
 def check_page(page, *, margin_mm: float, title_block_mm: tuple[float, float],
                leader_gap_mm: float, view_gap_mm: float) -> dict[str, Any]:
-    layout = classify_page(page)
-    width, height = layout["width"], layout["height"]
+    width, height = float(page.rect.width), float(page.rect.height)
     margin = margin_mm * PT_PER_MM
     inner = [margin, margin, width - margin, height - margin]
     tb_w, tb_h = (v * PT_PER_MM for v in title_block_mm)
     title_block = [width - margin - tb_w, height - margin - tb_h, width - margin, height - margin]
+    layout = classify_page(page, title_block=title_block)
     spans = extract_text(page)
     findings: list[dict[str, Any]] = []
+    title_block_ratios = []
 
     def in_margin(box: list[float]) -> bool:
         return box[0] < inner[0] or box[1] < inner[1] or box[2] > inner[2] or box[3] > inner[3]
@@ -182,11 +222,21 @@ def check_page(page, *, margin_mm: float, title_block_mm: tuple[float, float],
         if GRID_LABEL.match(span["text"]) and in_margin(box):
             continue  # 图框分区编号
         if _overlap_area(box, title_block) > 0.5 * (box[2] - box[0]) * (box[3] - box[1]):
+            match = SCALE_RATIO.match(span["text"])
+            if match:
+                title_block_ratios.append({
+                    "text": span["text"],
+                    "numerator": int(match.group(1)),
+                    "denominator": int(match.group(2)),
+                })
             continue  # 标题栏内容
         if DIMENSION_TEXT.match(span["text"]):
             dims.append(span)
 
-    anchor_segments = [seg for p in layout["line_paths"] for seg in p["segments"]]
+    # 尺寸线、尺寸界线和箭头都算“引出线”证据；箭头是 ≤4 mm 的符号块，
+    # 漏掉它会把正常标注误判成 DIM_NO_LEADER。
+    anchor_segments = [seg for p in layout["line_paths"] + layout["symbol_paths"]
+                       for seg in p["segments"]]
     view_segments = [seg for p in layout["view_paths"] for seg in p["segments"]]
     for span in dims:
         box, text = span["box"], span["text"]
@@ -234,6 +284,7 @@ def check_page(page, *, margin_mm: float, title_block_mm: tuple[float, float],
         "view_count": len(layout["views"]),
         "dimension_text_count": len(dims),
         "leader_path_count": len(layout["line_paths"]),
+        "title_block_ratios": title_block_ratios,
         "findings": findings,
     }
 
@@ -259,6 +310,42 @@ def cross_check_report(result: dict[str, Any], report_path: Path) -> list[dict[s
     sheet = report.get("sheet_setup") or {}
     if sheet and not sheet.get("sheet_size_verified"):
         findings.append({"severity": "fail", "code": "SHEET_SIZE_UNVERIFIED", "message": "出图报告未回读确认图幅。"})
+
+    # 图面比例三方核对：图面设置（标题栏“比例”格的来源）↔ 视图比例 ↔ PDF 标题栏文字。
+    # 只设视图比例、不设图面比例，正是 v1.1 齿轮图“视图 2:1、标题栏 1:1”的根因。
+    expected = _normalise_ratio((report.get("layout") or {}).get("scale_ratio"))
+    if expected:
+        if sheet:
+            actual_sheet = _normalise_ratio(sheet.get("actual_scale"))
+            if actual_sheet is None:
+                findings.append({"severity": "fail", "code": "SHEET_SCALE_UNVERIFIED",
+                                 "message": "出图报告没有回读图面比例，无法证明标题栏比例与视图一致。"})
+            elif actual_sheet != expected:
+                findings.append({"severity": "fail", "code": "SHEET_SCALE_MISMATCH",
+                                 "message": f"图面比例 {actual_sheet[0]}:{actual_sheet[1]} 与布局比例 "
+                                            f"{expected[0]}:{expected[1]} 不一致；标题栏会写错比例。"})
+        # 主视图比例取众数：轴测图/局部放大图允许与图面比例不同。
+        view_scales = [
+            scale for scale in (_normalise_ratio(view.get("scale"))
+                                for view in structure.get("views") or [])
+            if scale
+        ]
+        if view_scales:
+            common = max(dict.fromkeys(view_scales), key=view_scales.count)
+            if common != expected:
+                findings.append({"severity": "fail", "code": "VIEW_SCALE_MISMATCH",
+                                 "message": f"主视图比例 {common[0]}:{common[1]} 与图面比例 "
+                                            f"{expected[0]}:{expected[1]} 不一致。"})
+        ratios = [ratio for page in result["pages"] for ratio in page.get("title_block_ratios") or []]
+        if not any(_normalise_ratio(ratio.get("text")) == expected for ratio in ratios):
+            if ratios:
+                shown = "、".join(str(ratio.get("text")) for ratio in ratios)
+                findings.append({"severity": "fail", "code": "TITLE_SCALE_MISMATCH",
+                                 "message": f"PDF 标题栏比例写的是 {shown}，视图实际是 "
+                                            f"{expected[0]}:{expected[1]}。"})
+            else:
+                findings.append({"severity": "warn", "code": "TITLE_SCALE_UNVERIFIED",
+                                 "message": "PDF 标题栏内未识别到比例文字，请人工确认比例格。"})
     return findings
 
 

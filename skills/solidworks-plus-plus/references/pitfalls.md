@@ -105,6 +105,24 @@ SW2023 实测（不是教科书方向）：
   线段选择用 `"Line1@" + 草图名`。
 - 第一角：俯视图在主视图**下方**，左视图在主视图**右方**；第三角相反。国内图纸默认第一角。
 - `SetupSheet6` 的图幅代码来自 `PAPER_SIZES`，不要手写枚举。
+- **`SetupSheet6` 传 `.slddrt` 时 `TemplateIn` 必须为 12**（`swDwgTemplateCustom`），
+  不能传图幅码（A3=8）。传 8 也返回 `True`、图幅也对，但导出 PDF 会丢图框线、
+  标题栏和尺寸线（实测导出 0 条矢量路径）。不用 `.slddrt` 时才让两者同码。
+- **`CreateDrawViewFromModelView3` 会把图面比例重置为 1:1**。标题栏“比例”格跟图面比例，
+  所以视图（含轴测）全部建完后要再调一次 `SetupSheet6`，并用 `GetProperties2()`
+  回读比例（第 3/4 项）与图幅（第 6/7 项，注意返回 8 项时尺寸仍在 `[5:7]`）。
+  “重设比例会丢标题栏”是误判，真正原因是 `TemplateIn` 传错。
+- `InsertModelAnnotations3(Option, Types, AllViews, DuplicateDims, HiddenFeatureDims,
+  UsePlacementInSketch)`：第 3 个参数是 `AllViews`，不是 `DuplicateDims`。
+  `DuplicateDims=False` 只防同一视图内重复，**跨视图重复仍会出现**；按
+  `IDimension.FullName` 去重，用 `IAnnotation.Select2(False,0)` + `EditDelete` 删除
+  多余的显示尺寸（不动模型）。实测齿轮图 10 → 4。
+- `IView.GetOutline()` 含视图边框，左边缘比真实几何多约 6 mm。摆放尺寸用建模时
+  的规划视图框，不要用它算偏移，否则容易顶到 PDF 检查器 25 mm 的悬浮阈值。
+- 同一视图两列尺寸若同高，水平引出线会沿同一条中心线重叠（机器检查发现不了）；
+  两列要错开半行距（约 4.5 mm）。
+- `IDisplayDimension.GetText(0)` 对导入尺寸返回空串，PDF 里却有数值；不能据此判断
+  尺寸无文字，也不能拿它当尺寸值证据。
 - 出图后必须看 PDF/PNG 预览，不能只看 `view_count`。
 - 标题栏字段若未链接自定义属性，COM 不会自动填写；需要手工补或改图纸格式。
 

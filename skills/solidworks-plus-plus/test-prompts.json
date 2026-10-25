@@ -147,16 +147,19 @@
         "sheet": "A3",
         "sheet_size_m": [0.42, 0.297],
         "sheet_size_verified": true,
+        "sheet_scale_verified": true,
         "projection": "first",
         "min_view_count": 3,
         "has_isometric": true,
         "min_dimension_count": 6,
         "preview_not_blank": true,
         "artifacts": ["slddrw", "pdf", "preview", "drawing_report"],
-        "report_status": "pass"
+        "report_status": "pass",
+        "pdf_check_status": "pass",
+        "dimension_dedupe_status": "pass"
       },
-      "notes": "本机黄金用例：001 连杆出图 4 视图、23 尺寸、A3 校验通过。",
-      "failure_signals": ["configured=true 就宣布成功", "actual_size_m 仍是 A4", "dimension_count=0 说已标注", "只交 PDF 不交 SLDDRW"]
+      "notes": "本机黄金用例：001 连杆出图 4 视图、23 尺寸、A3 校验通过；比例与 PDF 初筛按 v1.2 门禁一并检查。",
+      "failure_signals": ["configured=true 就宣布成功", "actual_size_m 仍是 A4", "dimension_count=0 说已标注", "只交 PDF 不交 SLDDRW", "标题栏比例与视图比例不一致", "同一尺寸跨视图重复"]
     },
     {
       "id": "m2d_a4_third_angle",

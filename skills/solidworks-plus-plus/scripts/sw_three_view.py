@@ -28,10 +28,12 @@ from sw_connect import get_com_member  # noqa: E402
 from sw_drawing import (  # noqa: E402
     PAPER_SIZES,
     _apply_view_layout,
+    arrange_dimension_positions,
     export_sheet_to_pdf,
     inspect_drawing_structure,
     insert_dimensions,
     plan_standard_view_layout,
+    remove_duplicate_dimensions,
 )
 from sw_review import (  # noqa: E402
     collect_geometry_measurements,
@@ -65,9 +67,20 @@ def find_drawing_template(paper: str) -> dict:
     }
 
 
-def setup_sheet(drawing, paper: str, sheet_format: str | None) -> dict:
-    """@brief 用 SetupSheet6 将当前图纸设为指定图幅和 GB 图框（第一角）。"""
+def setup_sheet(drawing, paper: str, sheet_format: str | None,
+                scale_ratio: tuple[int, int] | list[int] | None = None) -> dict:
+    """@brief 用 SetupSheet6 将当前图纸设为指定图幅、GB 图框（第一角）和图面比例。
+
+    SW2023 实测（2026-10-25，空白图 + 齿轮图两步探针）：
+    - TemplateIn 必须是 swDwgTemplateCustom=12 才会真正加载传入的 .slddrt；
+      传图幅码（A3=8）时 SetupSheet6 仍返回 True、图幅也正确，但 PDF 导出会丢掉
+      图框线、标题栏和尺寸线（空白图导出 0 条矢量路径）。
+    - 图幅大小由 PaperSize 决定，与 TemplateIn=12 不冲突。
+    - 图面比例用 Scale1/Scale2 设置；标题栏“比例”格随图面比例更新。
+    """
     spec = PAPER_SIZES[paper]
+    numerator, denominator = (scale_ratio or (1, 1))
+    template_in = 12 if sheet_format else spec["code"]
     try:
         sheet = get_com_member(drawing, "GetCurrentSheet")
         sheet_name = str(get_com_member(sheet, "GetName") or "")
@@ -76,9 +89,9 @@ def setup_sheet(drawing, paper: str, sheet_format: str | None) -> dict:
             "SetupSheet6",
             sheet_name,
             spec["code"],
-            spec["code"],
-            1.0,
-            1.0,
+            template_in,
+            float(numerator),
+            float(denominator),
             True,
             sheet_format or "",
             0.0,
@@ -95,23 +108,42 @@ def setup_sheet(drawing, paper: str, sheet_format: str | None) -> dict:
         if not configured:
             return {"configured": False, "sheet_name": sheet_name,
                     "error_code": "DRAWING_SHEET_SETUP_FAILED"}
-        # GetProperties 返回 (paper_size, template_in, scale1, scale2, first_angle,
-        #                      width_m, height_m)；必须回读，不能只信 SetupSheet6 的 True。
-        properties = list(get_com_member(sheet, "GetProperties") or [])
-        actual = properties[-2:] if len(properties) >= 2 else []
+        # GetProperties/GetProperties2 返回 (paper_size, template_in, scale1, scale2,
+        # first_angle, width_m, height_m)；必须回读，不能只信 SetupSheet6 的 True。
+        properties = list(get_com_member(sheet, "GetProperties2") or [])
+        if not properties:
+            properties = list(get_com_member(sheet, "GetProperties") or [])
+        # 7 项：(paper_size, template_in, scale1, scale2, first_angle, width, height)；
+        # GetProperties2 有时多一个 same_custom_prop 尾项，尺寸仍固定在第 6/7 项。
+        actual = properties[5:7] if len(properties) >= 7 else properties[-2:]
         size_ok = (
             len(actual) == 2
             and abs(float(actual[0]) - spec["width_m"]) < 0.002
             and abs(float(actual[1]) - spec["height_m"]) < 0.002
         )
+        actual_scale = properties[2:4] if len(properties) >= 4 else []
+        scale_ok = (
+            len(actual_scale) == 2
+            and abs(float(actual_scale[0]) - float(numerator)) < 1e-6
+            and abs(float(actual_scale[1]) - float(denominator)) < 1e-6
+        )
+        error_code = None
+        if not size_ok:
+            error_code = "DRAWING_SHEET_SIZE_MISMATCH"
+        elif not scale_ok:
+            error_code = "DRAWING_SHEET_SCALE_MISMATCH"
         return {
             "configured": True,
             "sheet_size_verified": size_ok,
+            "sheet_scale_verified": scale_ok,
             "sheet_name": sheet_name,
             "paper_properties": properties,
             "actual_size_m": actual,
             "expected_size_m": [spec["width_m"], spec["height_m"]],
-            "error_code": None if size_ok else "DRAWING_SHEET_SIZE_MISMATCH",
+            "requested_scale": [int(numerator), int(denominator)],
+            "actual_scale": actual_scale,
+            "template_in": template_in,
+            "error_code": error_code,
         }
     except Exception as exc:
         return {"configured": False, "error_code": "DRAWING_SHEET_SETUP_FAILED", "error": str(exc)}
@@ -255,10 +287,12 @@ def run(args) -> dict:
         report["layout"] = {key: layout[key] for key in ("status", "scale", "scale_ratio", "projection", "views")}
 
         drawing = session.new_drawing(template_path=templates["template"])
-        report["sheet_setup"] = setup_sheet(drawing, paper, templates["sheet_format"])
-        if not report["sheet_setup"].get("sheet_size_verified"):
+        initial_setup = setup_sheet(
+            drawing, paper, templates["sheet_format"], layout["scale_ratio"])
+        report["sheet_setup_initial"] = initial_setup
+        if not initial_setup.get("sheet_size_verified"):
             report.update({"status": "failed",
-                           "error_code": report["sheet_setup"].get("error_code")})
+                           "error_code": initial_setup.get("error_code")})
             return report
         creation = create_views(drawing, part_path, layout, view_names)
         report["view_creation"] = creation
@@ -269,16 +303,33 @@ def run(args) -> dict:
         if args.iso:
             report["isometric"] = add_isometric_view(drawing, part_path, layout, view_names)
 
+        # SW2023 实测（2026-10-25）：CreateDrawViewFromModelView3 会把图面比例
+        # 重置回 1:1。标题栏“比例”格跟的是图面比例，所以必须在视图（含轴测图）
+        # 创建完成后补设一次，并以这次回读作为 sheet_setup 的最终证据。
+        final_setup = setup_sheet(
+            drawing, paper, templates["sheet_format"], layout["scale_ratio"])
+        report["sheet_setup"] = final_setup
+        if not final_setup.get("sheet_size_verified") or not final_setup.get("sheet_scale_verified"):
+            report.update({"status": "failed",
+                           "error_code": final_setup.get("error_code")
+                           or "DRAWING_SHEET_SCALE_MISMATCH"})
+            return report
+
         if args.dims:
             inserted = insert_dimensions(drawing)
             report["dimension_insertion"] = {"returned": inserted is not None,
                                              "type": str(type(inserted))}
-            try:
-                from sw_drawing import auto_arrange_drawing_dimensions
+            report["dimension_dedupe"] = remove_duplicate_dimensions(drawing)
+            report["dimension_placement"] = arrange_dimension_positions(
+                drawing, view_boxes=[item["box"] for item in layout["views"]])
+            if report["dimension_placement"].get("status") != "pass":
+                # 自定位失败时退回 SolidWorks 官方排列，至少不留未验证的手工位置。
+                try:
+                    from sw_drawing import auto_arrange_drawing_dimensions
 
-                report["dimension_arrangement"] = auto_arrange_drawing_dimensions(drawing)
-            except Exception as exc:
-                report["dimension_arrangement"] = {"status": "skipped", "error": str(exc)}
+                    report["dimension_arrangement"] = auto_arrange_drawing_dimensions(drawing)
+                except Exception as exc:
+                    report["dimension_arrangement"] = {"status": "skipped", "error": str(exc)}
 
         drawing.ForceRebuild3(False)
         drawing.ViewZoomtofit2()
