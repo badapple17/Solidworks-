@@ -1,0 +1,124 @@
+{
+  "path": "C:\\Users\\yushe\\Desktop\\skill训练区\\spur_gear_demo_20261024\\spur_gear_Z24_M2.5.SLDPRT",
+  "name": "spur_gear_Z24_M2.5.SLDPRT",
+  "title": "spur_gear_Z24_M2.5.SLDPRT",
+  "doc_type": 1,
+  "envelope_mm": [
+    65.0,
+    65.0,
+    20.0
+  ],
+  "box_min_mm": [
+    -32.5,
+    -32.5,
+    -10.0
+  ],
+  "box_max_mm": [
+    32.5,
+    32.5,
+    10.0
+  ],
+  "body_count": 1,
+  "features": [
+    {
+      "name": "Favorites",
+      "type": "FavoriteFolder"
+    },
+    {
+      "name": "History",
+      "type": "HistoryFolder"
+    },
+    {
+      "name": "Selection Sets",
+      "type": "SelectionSetFolder"
+    },
+    {
+      "name": "传感器",
+      "type": "SensorFolder"
+    },
+    {
+      "name": "设计活页夹",
+      "type": "DocsFolder"
+    },
+    {
+      "name": "注解",
+      "type": "DetailCabinet"
+    },
+    {
+      "name": "Markups",
+      "type": "InkMarkupFolder"
+    },
+    {
+      "name": "光源、相机与布景",
+      "type": "EnvFolder"
+    },
+    {
+      "name": "实体",
+      "type": "SolidBodyFolder"
+    },
+    {
+      "name": "曲面实体",
+      "type": "SurfaceBodyFolder"
+    },
+    {
+      "name": "备注",
+      "type": "CommentsFolder"
+    },
+    {
+      "name": "方程式",
+      "type": "EqnFolder"
+    },
+    {
+      "name": "材质 <未指定>",
+      "type": "MaterialFolder"
+    },
+    {
+      "name": "前视基准面",
+      "type": "RefPlane"
+    },
+    {
+      "name": "上视基准面",
+      "type": "RefPlane"
+    },
+    {
+      "name": "右视基准面",
+      "type": "RefPlane"
+    },
+    {
+      "name": "原点",
+      "type": "OriginProfileFeature"
+    },
+    {
+      "name": "Tables",
+      "type": "ConfigTableFolder"
+    },
+    {
+      "name": "草图1",
+      "type": "ProfileFeature"
+    },
+    {
+      "name": "01_GEAR_BODY_Z24_M2.5_PA20",
+      "type": "Extrusion",
+      "dimensions": [
+        {
+          "full_name": "D1@01_GEAR_BODY_Z24_M2.5_PA20@spur_gear_Z24_M2.5.Part",
+          "value_mm": 12.0
+        }
+      ]
+    },
+    {
+      "name": "草图2",
+      "type": "ProfileFeature"
+    },
+    {
+      "name": "02_HUB_D36_BORE_D20",
+      "type": "ICE",
+      "dimensions": [
+        {
+          "full_name": "D1@02_HUB_D36_BORE_D20@spur_gear_Z24_M2.5.Part",
+          "value_mm": 20.0
+        }
+      ]
+    }
+  ]
+}

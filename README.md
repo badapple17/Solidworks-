@@ -1,9 +1,8 @@
-#solidworks agent建模skill
 # SolidWorks++ · SolidWorks 建模与出图技能（非官方）
 
 > **同一个内核，多一套工程库。**
 > 让**低成本模型**也能稳定交付合格的三维模型与工程图。
-> 发布包 v1.0 · 2026-10-25 · 非官方项目
+> v1.1 · 2026-10-25 · 非官方项目
 
 > **定位说明**：SolidWorks++ 是建立在 SolidWorks API 之上的工程库与工作流层，**不是新的 CAD 内核，也不是 SolidWorks 的修改版**。输出仍是原生 `SLDPRT` / `SLDASM`，任何 SolidWorks 都能打开。
 >
@@ -20,7 +19,8 @@
 | 两种模式 | **A 示意模式**：定性看形状，不抠尺寸；**B 精确模式**：按图施工，尺寸可追溯、可交付 |
 | 核心承诺 | **不猜**。关键信息不确定就提问；每个交付都必须过证据门禁 |
 | 适用 | Windows + SolidWorks 桌面版（COM），Python 3.9+ |
-| 本包内容 | SolidWorks++ 技能（139 个文件）+ 4 个由 DeepSeek V4 生成的真实实例 |
+| 仓库内容 | `skills/solidworks-plus-plus/`（143 个文件的完整技能）+ `showcase/`（4 个由 DeepSeek V4 生成的真实实例） |
+| 安装 | `npx skills add badapple17/Solidworks-`，或 `git clone` 后把 `skills/solidworks-plus-plus` 放进本机 skills 目录 |
 
 这个技能不是一份“提示词模板”，而是一套**可执行的工程流程**：模式判定 → 提问 → 任务卡 → 路线文档 → 确定性脚本 → 证据门禁 → 失败分支 → 交付审查。它的目标不是让模型“更会聊天”，而是让能力较弱的模型也能按同一套流程做出**尺寸对、拓扑对、能复查**的模型。
 
@@ -28,7 +28,7 @@
 
 | `+` | 加的是什么 | 对应内容 |
 |---|---|---|
-| 第一个 `+` | **标准库** | 38 个确定性脚本：连接、草图、拉伸、旋转、孔、阵列、装配、出图、审查、导出、FEA 判据 |
+| 第一个 `+` | **标准库** | 41 个确定性脚本：连接、草图、拉伸、旋转、孔、阵列、装配、出图、审查、导出、FEA 判据、任务卡/PDF/一致性检查 |
 | 第二个 `+` | **工程规范** | 零件族配方、参数表、验证门禁、失败分支、G0/G1/G2 提问协议 |
 
 这个命名方式确实受到 **C++** 的启发：C 提供语言内核，C++ 在它之上增加了类、模板、标准库和整套工程设施；SolidWorks++ 借用同样的结构——SolidWorks 仍是内核，`++` 是加在 API 之上的脚本库与工程规范。
@@ -57,13 +57,14 @@
 
 | 优势 | 具体做法 | 可验证的证据 |
 |---|---|---|
-| **确定性脚本，不靠模型记忆** | 草图、拉伸、旋转、孔、阵列、抽壳、出图都有高层封装；参数用 `mm()`，返回值逐个检查 | `scripts/` 38 个 Python 模块，示例与黄金用例可直接复跑 |
+| **确定性脚本，不靠模型记忆** | 草图、拉伸、旋转、孔、阵列、抽壳、出图都有高层封装；参数用 `mm()`，返回值逐个检查 | `scripts/` 41 个 Python 模块，示例与黄金用例可直接复跑 |
+| **硬规则可机器检查** | 任务卡/提问记录/交付说明由 `check_task_card.py` 检查；工程图 PDF 由 `check_drawing_pdf.py` 检查；技能自身说法由 `check_skill_consistency.py` 检查 | 三个脚本的退出码与报告，见 §5.3 |
 | **每个交付都有证据门禁** | 文件、包围盒、体积、实体数、特征、孔、视觉、图纸八类门禁；`evaluation.status != pass` 禁止宣布完成 | 第 5 节门禁表；`run_review()` 报告 |
 | **体积是最便宜的全量自检** | 按参数表手算期望体积并断言，差 > 0.1% 就停 | 孔漏切、缺口没开、凸台高度错，包围盒看不出来，体积会立刻露馅 |
 | **两种模式，按需提问** | A 模式不问具体数值、只问对象/结构/拓扑；B 模式逐项追问缺失的关键尺寸 | `references/modes-and-questions.md` |
 | **提问贯穿全程** | G0 开工 / G1 阶段 / G2 过程三道决策门禁；重大分支当场问，不许攒到交付 | §2.5 决策门禁 + §2.6 质量自检 |
 | **弱模型分层保底** | L1 保底包（SKILL.md + 路线文档 + quick-snippets + 配方）先过门禁，L2/L3 继续加高 | 受限模型只读 L1 也能跑通黄金用例（见 §6） |
-| **失败模式显式编码** | 9 类失败分支表 + 17 条黑名单 + 反例清单 | SKILL.md 第 6/7 节 |
+| **失败模式显式编码** | 9 类失败分支表 + 22 条黑名单 + 反例清单 | SKILL.md 第 6/7 节 |
 | **知识来自真实题库与手册** | 400+ 个答案模型的特征树统计、172 本手册、8 册 SolidWorks 2024 教材 OCR | §6 训练过程 |
 | **路径可移植** | 文档用 `<skill>` / `<workdir>` 占位符；安装目录、模板、类型库自动发现；不写死盘符 | 全包 grep 无本机路径 |
 | **实例可复现** | 4 个真实任务保留建造脚本、输入分析、关键预览、审查报告与 PDF | `showcase/` |
@@ -118,6 +119,11 @@
 5. **对象本身不清楚**：做什么、长什么样、几个零件、用在哪儿。
 6. **关键结构读不懂**：图上有但看不清/读不懂的形状、孔位、凸台、筋。
 7. **输入来源互相冲突**：照片与照片、照片与文字描述给出不同结构/尺寸。
+8. **参考图任务的性质**：1:1 复刻还是只要结构/风格相似？复刻的比例基准是哪个已知尺寸/标准件？
+9. **尺寸来源冲突**：同一尺寸在不同视图、标题栏、技术要求里互相矛盾 → 列出冲突点问取舍。
+10. **工程图字段来源**：材料、未注公差等级、图号、设计者——没有来源就问，不许自己发明。
+11. **外购件规格**：轴承/螺栓/齿轮的系列、是否允许占位件、缺货时的替代方案。
+12. **改已有文件**：旧版本是否保留、新版本命名规则、交付格式（SLDDRW / PDF / DWG）。
 
 ### 4.3 决策门禁：G0 / G1 / G2
 
@@ -204,6 +210,8 @@
 | 孔 | 孔径/孔位与图纸一致 | `collect_geometry_measurements()` |
 | 视觉 | 四视图预览方向、比例、特征正确 | `run_review()` 导出的 BMP |
 | 图纸 | 视图数、尺寸数、布局、PDF | `_drawing_report.json` + PDF 首屏 |
+| 图纸 PDF | `check_drawing_pdf.py` 无 fail（悬空尺寸、无引出线、越界、视图重叠） | `pdf_check` 报告 |
+| 流程 | 任务卡过 `check_task_card.py`；交付时 handoff 证据齐全 | `task_card.json` + 检查输出 |
 
 `evaluation.status` 不是 `pass` 时**禁止宣布完成**；先修复并重新生成。
 
@@ -223,11 +231,11 @@
 
 ### 5.5 黑名单（出现即返工）
 
-不判定模式就直接建模；把虚线当外轮廓；用屏幕坐标选边选面；猜测未封装的 COM 签名和枚举值；草图未闭合就拉伸；圆角在主体切除之前做；只保存不审查；用第三角布局交付国内加工图；尺寸数为 0 却声称“已自动标注”；覆盖上一轮交付文件；隐瞒 `assumed` / `estimated` 来源；关键信息不确定就瞎猜；推荐值未经确认就使用；不判断结构就背配方；只在开工问一次；重大分支自己拍板。
+不判定模式就直接建模；把虚线当外轮廓；用屏幕坐标选边选面；猜测未封装的 COM 签名和枚举值；草图未闭合就拉伸；圆角在主体切除之前做；只保存不审查；用第三角布局交付国内加工图；尺寸数为 0 却声称“已自动标注”；覆盖上一轮交付文件；隐瞒 `assumed` / `estimated` 来源；关键信息不确定就瞎猜；推荐值未经确认就使用；不判断结构就背配方；只在开工问一次；重大分支自己拍板；工程图 PDF 没过 `check_drawing_pdf.py` 就宣布出图完成；任务卡没过 `check_task_card.py` 就宣布完成；检查没跑就写 pass；照片复刻没有比例基准就估尺寸；自己发明公差、材料或标题栏字段。
 
 ### 5.6 可重复验收用例
 
-`test-prompts.json` 共 **10 个用例**，其中 **6 个黄金用例**（每次改技能必跑）：
+`test-prompts.json` 共 **14 个用例**，其中 **6 个黄金用例**（每次改技能必跑）：
 
 | ID | 路线 | 通过证据 |
 |---|---|---|
@@ -237,6 +245,8 @@
 | `m2d_a3_first_angle` | 模型 → 图 | A3 回读 `0.420 × 0.297`，视图 ≥3，尺寸 >0，预览非空白 |
 | `d2p_b_missing_dims` | 图 → 模型 | 先问 3–4 个关键尺寸并给推荐值，不得静默开建 |
 | `d2p_a_ambiguous_object` | 图 → 模型 | 对象不清时先问清对象和拓扑，再按 A 模式估尺寸 |
+
+另有 4 个交互/一致性用例（非黄金）：`d2p_b_conflicting_dims`（冲突尺寸）、`d2p_b_photo_reproduce`（照片复刻基准）、`m2d_b_drawing_document`（图纸字段来源）、`m2d_pdf_check_required`（PDF 机器检查）。
 
 ---
 
@@ -275,11 +285,11 @@
 
 ### 6.3 训练产物
 
-- `references/`：35 份文档（29 份主题参考 + 5 份零件族配方 + 1 份配方索引）。
-- `scripts/`：38 个 Python 模块（连接、零件、孔、装配、出图、审查、导出、FEA、布线审查等）。
+- `references/`：36 份文档（30 份主题参考 + 5 份零件族配方 + 1 份配方索引）。
+- `scripts/`：41 个 Python 模块（连接、零件、孔、装配、出图、审查、导出、FEA、布线审查、任务卡/PDF/一致性检查等）。
 - `tests/`：11 个真机回归脚本。
 - `capabilities.yaml`：28 项能力清单（8 项 `verified`、16 项 `pilot`、3 项 `reference_only`、1 项 `not_implemented`）。
-- `test-prompts.json`：10 个可重复验收用例。
+- `test-prompts.json`：14 个可重复验收用例（6 个黄金）。
 - `training/cases/`：黄金用例说明。
 
 ---
@@ -299,6 +309,8 @@
 
 每个实例目录都包含：**建造脚本 + 输入分析（如有）+ 关键预览图 + 审查报告 / PDF + README（参数、验证、限制、复现命令）**。
 
+> ⚠️ 齿轮实例的工程图 PDF 已跑 `check_drawing_pdf.py` 机器初筛，结果为 **fail**：10 处 `DIM_NO_LEADER`（尺寸文字周边没有尺寸线/箭头）、2 处 `OUT_OF_FRAME`（φ20 / φ36 的尺寸文字越出视图框）。这是随包交付的真实缺陷，未用 COM 重出图；按 §4/§5 门禁，不得凭这张 PDF 宣布图纸完成。详见 [`01-spur-gear/README.md`](showcase/01-spur-gear/README.md)。
+
 > ⚠️ 重跑示例会在原目录写入模型/预览，可能覆盖随包交付的文件。复现前请先复制整个实例目录到自己的工作区。
 
 ---
@@ -306,26 +318,32 @@
 ## 8. 目录结构
 
 ```text
-solidworks-plus-plus-v1.0-20261025/
-├── README.md                     # 本文件
-├── solidworks-plus-plus/          # 完整技能（139 个文件，不含 .git / __pycache__）
-│   ├── SKILL.md                  # 技能入口：模式、路线、门禁、失败分支、黑名单
-│   ├── capabilities.yaml         # 28 项能力等级（唯一真源）
-│   ├── test-prompts.json         # 10 个可重复验收用例
-│   ├── golden-workflows.yaml     # 关键工作流的必需输入与产物
-│   ├── references/               # 35 份参考文档（含 5 个零件族配方）
-│   ├── scripts/                  # 38 个确定性脚本
-│   ├── tests/                    # 11 个真机回归脚本
-│   ├── examples/                 # 技能自带的基础示例（01–08 + 齿轮案例）
-│   ├── subskills/                # 4 个子技能（CNC 圆角、螺纹孔、VibeCAD、AutoCAD）
-│   └── training/cases/           # 黄金用例说明
-└── showcase/                     # 4 个真实实例
+Solidworks-/                        # 仓库根目录
+├── README.md                       # 本文件
+├── LICENSE                         # MIT（保留上游版权声明）
+├── THIRD_PARTY_NOTICES.md          # wzyn20051216 / earthtojake 的 MIT 声明
+├── skills.sh.json                  # skills.sh 分组清单
+├── skills/
+│   └── solidworks-plus-plus/       # 完整技能（143 个文件，可直接安装）
+│       ├── SKILL.md                # 技能入口：模式、路线、门禁、失败分支、黑名单
+│       ├── capabilities.yaml       # 28 项能力等级（唯一真源，含版本来源口径）
+│       ├── test-prompts.json       # 14 个可重复验收用例（6 个黄金）
+│       ├── golden-workflows.yaml   # 关键工作流的必需输入与产物
+│       ├── references/             # 36 份参考文档（含 5 个零件族配方）
+│       ├── scripts/                # 41 个确定性脚本
+│       ├── tests/                  # 11 个真机回归脚本
+│       ├── examples/               # 技能自带的基础示例（01–08 + 齿轮案例）
+│       ├── subskills/              # 4 个子技能（CNC 圆角、螺纹孔、VibeCAD、AutoCAD）
+│       └── training/cases/         # 黄金用例说明
+└── showcase/                       # 4 个真实实例
     ├── README.md
     ├── 01-spur-gear/
     ├── 02-car-wheel/
     ├── 03-plastic-bottle/
     └── 04-phone-stand/
 ```
+
+> 仓库根目录**只保留可直接安装的 `skills/solidworks-plus-plus/`**，不再提供 zip。`git clone` 后可直接复制使用，`npx skills add` / skills.sh 也能识别。
 
 ---
 
@@ -334,7 +352,7 @@ solidworks-plus-plus-v1.0-20261025/
 ### 9.1 环境要求
 
 - Windows 10/11（SolidWorks COM 仅 Windows）。
-- SolidWorks 桌面版。开发与验收基线：**SolidWorks 2023 SP0.1**；`capabilities.yaml` 声明 2023 / 2024 / 2026 的兼容范围，新版本请先跑 `sw_preflight.py` 和黄金用例。
+- SolidWorks 桌面版。**本仓库真机复测基线：SolidWorks 2023 SP0.1**。2024/2026 是继承自上游 wzyn20051216/solidworks-automation-skill 的实测记录，**本仓库未复测**；这些版本按 `pilot` 对待：先跑 `sw_preflight.py` 和黄金用例，再交付。完整口径见 `capabilities.yaml` 的 `version_policy`。
 - Python 3.9+，依赖：`pywin32`、`comtypes`、`Pillow`、`PyMuPDF`。
   - 开发机使用 `py -3.12` 启动器；目标机按本机解释器调用。
 - 可选：CalculiX（有限元）、AutoCAD（CNC 二维图纸子技能）；不装不影响主路线。
@@ -344,13 +362,19 @@ solidworks-plus-plus-v1.0-20261025/
 发布名是 **SolidWorks++**；技术目录 / 技能 id 是 **`solidworks-plus-plus`**（skills 规范只允许小写字母、数字和连字符，`+` 不能出现在目录名里）。
 
 ```powershell
-# Claude Code
-xcopy /E /I solidworks-plus-plus "%USERPROFILE%\.claude\skills\solidworks-plus-plus"
+# 方式 1：skills.sh 一行安装（识别 skills/solidworks-plus-plus 布局）
+npx skills add badapple17/Solidworks-
 
-# 其他兼容 skills 的 runtime：放到对应 skills 目录；
+# 方式 2：git clone 后直接复制（不依赖 skills.sh）
+git clone https://github.com/badapple17/Solidworks-.git
+xcopy /E /I Solidworks-\skills\solidworks-plus-plus "%USERPROFILE%\.claude\skills\solidworks-plus-plus"
+
+# 方式 3：其他兼容 skills 的 runtime：放到对应 skills 目录；
 # 或在环境变量里指定技能根目录：
 setx SOLIDWORKS_PLUS_PLUS_SKILL_DIR "D:\path\to\solidworks-plus-plus"
 ```
+
+三种方式安装的都是同一个目录：`skills/solidworks-plus-plus/`（`SKILL.md` 就在这一层，没有多余的包一层）。
 
 技能文档中的 `<skill>` 指技能根目录（`SKILL.md` 所在目录），`<workdir>` 指你的工作目录。
 
@@ -384,7 +408,14 @@ py -3.12 "<skill>\scripts\sw_three_view.py" --part spur_gear_Z24_M2.5_dim.SLDPRT
 ### 9.5 用黄金用例验收自己的修改
 
 ```powershell
-py -3.12 -c "import json;d=json.load(open(r'<skill>\test-prompts.json',encoding='utf-8'));print([c['id'] for c in d['cases']])"
+# 列出全部用例（golden=true 的 6 个是每次改技能必跑的）
+py -3.12 -c "import json;d=json.load(open(r'<skill>\test-prompts.json',encoding='utf-8'));print([c['id'] for c in d['cases']]);print([c['id'] for c in d['cases'] if c.get('golden')])"
+
+# 改完技能先自查一致性（版本说法、description、用例计数、引用文件）
+py -3.12 "<skill>\scripts\check_skill_consistency.py" --strict
+
+# 任务卡/交付说明自查
+py -3.12 "<skill>\scripts\check_task_card.py" "<workdir>\task_card.json" --stage delivery --strict
 ```
 
 按 `expected` 字段逐项核对；失败信号出现即返工。题库原始文件不随技能交付，`dataset_ref` 仅用于追溯。
@@ -395,7 +426,7 @@ py -3.12 -c "import json;d=json.load(open(r'<skill>\test-prompts.json',encoding=
 
 | 项 | 说明 |
 |---|---|
-| SolidWorks | 2023 SP0.1 实测；其他版本按 `capabilities.yaml` 的未验证项处理 |
+| SolidWorks | 2023 SP0.1 **本机实测**；2024/2026 为上游继承记录（本仓库未复测，按 pilot 处理）；其余版本按未验证项处理 |
 | Python | 3.9+；开发机 `py -3.12` |
 | 模板 | 自动搜索 `ProgramData\SOLIDWORKS\SOLIDWORKS *\templates` 与 `Program Files` 语言目录；找不到时按报错手动指定 |
 | 类型库 | 通过 `discover_installations()` 动态发现安装目录，不写死盘符 |
@@ -416,7 +447,7 @@ py -3.12 -c "import json;d=json.load(open(r'<skill>\test-prompts.json',encoding=
 2. **复杂曲面 / 模具型腔 / 导入无特征史曲面**属于 `reference_only` / `pilot` 能力，必须人工审查。
 3. **Routing 不自动布线**：`piping.md` 提供线路组织、配件拓扑、折弯/直段、验收与 BOM 的人工流程，不含 Routing API。
 4. **照片反求只保证拓扑与比例**，不保证尺寸；关键配合尺寸仍需用户确认或实测。
-5. **工程图 PDF 只在齿轮实例中提供**：其余三个是示意件，未出工程图；出图能力由 `m2d_a3_first_angle` 等黄金用例覆盖。
+5. **工程图 PDF 只在齿轮实例中提供**：其余三个是示意件，未出工程图；出图能力由 `m2d_a3_first_angle` 等黄金用例覆盖。齿轮 PDF **未通过** `check_drawing_pdf.py`（10 处 `DIM_NO_LEADER`、2 处 `OUT_OF_FRAME`），随包保留是为了展示“机器初筛能抓到什么”，不是合格图纸样例。
 6. **标题栏比例限制**：齿轮图的 GB 模板标题栏“比例”为 1:1，与视图实际 2:1 不一致；用 API 重设图纸比例会导致 SW2023 该模板标题栏丢失，因此保留模板原状（详见齿轮 README）。
 7. **电气基础/高级教材未提炼**：与机械建模无关，只保留 OCR 原文。
 8. **中文优先**：文档与提问模板以中文为主；英文用户可读 SKILL.md 的英文接口说明与脚本注释。
@@ -428,11 +459,23 @@ py -3.12 -c "import json;d=json.load(open(r'<skill>\test-prompts.json',encoding=
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
+| **v1.1** | 2026-10-25 | 标准 `skills/` 仓库布局（移除 zip，`npx skills add` / `git clone` 直接可用）；版本口径拆分（本机实测 2023 / 上游继承 2024、2026）；description 改为触发词式；新增 `task_card.json` 与三个检查脚本（任务卡、PDF、技能一致性）；吸收 text-to-cad 的工程图方法论；验收用例 10 → 14（6 个黄金） |
 | **v1.0** | 2026-10-25 | 首个对外发布包：完整技能 + 4 个 DeepSeek V4 实例；路径可移植化；G0/G1/G2 提问门禁；模式选择六段式；10 个验收用例（6 个黄金） |
 
 ---
 
-## 13. 致谢与参考
+## 13. 特别鸣谢
+
+本项目的完成离不开以下两个开源技能的作者，特此致谢：
+
+- **[wzyn20051216/solidworks-automation-skill](https://github.com/wzyn20051216/solidworks-automation-skill)** — 感谢作者提供的 SolidWorks 自动化工作流、能力清单结构与 2024/2026 版本实测记录。本仓库 `capabilities.yaml` 的 `upstream_verified_versions` 继承自该项目（MIT，Copyright (c) 2026 SolidWorks Automation Skill Contributors）。
+- **[earthtojake/text-to-cad](https://github.com/earthtojake/text-to-cad)** — 感谢作者提供的 CAD 方法论，尤其是 `skills/engineering-drawing` 与 `skills/cad` 中的图纸派生纪律、检查证据、快照策略、修复循环与冲突尺寸处理。本仓库只吸收方法论，未复制其运行时代码（MIT，Copyright (c) 2026 Thompson Labs LLC）。
+
+完整的 MIT 声明见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+---
+
+## 14. 致谢与参考
 
 - GB/T 制图规范与机械设计手册（172 本）为 `drawing-standards.md`、`standard-parts.md` 提供依据。
 - SolidWorks 2024 官方教材 8 册为 `surfacing.md`、`motion-study.md`、`feature-strategy.md`、`assembly.md`、`verification.md`、`piping.md` 提供知识来源。

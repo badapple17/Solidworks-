@@ -1,0 +1,106 @@
+{
+  "reopen_verified": true,
+  "reopen_envelope_mm": {
+    "length": 470.0,
+    "width": 470.0,
+    "height": 200.0,
+    "axis_order": "model_xyz"
+  },
+  "reopen_volume_mm3": 7811777.122,
+  "reopen_body_count": 1,
+  "version": "v3",
+  "hole_validation_status": "pass",
+  "hole_validation_errors_mm": {
+    "diameter": 0.0,
+    "position": 0.0
+  },
+  "real_hole_group_count": 7,
+  "real_hole_groups": [
+    {
+      "diameters_mm": [
+        70.5
+      ],
+      "segment_count": 2,
+      "position_mm": [
+        0.0,
+        0.0,
+        -180.0
+      ]
+    },
+    {
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "position_mm": [
+        0.0,
+        57.15,
+        -180.0
+      ]
+    },
+    {
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "position_mm": [
+        -54.35288,
+        17.660321,
+        -180.0
+      ]
+    },
+    {
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "position_mm": [
+        -33.591927,
+        -46.235321,
+        -180.0
+      ]
+    },
+    {
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "position_mm": [
+        33.591927,
+        -46.235321,
+        -180.0
+      ]
+    },
+    {
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "position_mm": [
+        54.35288,
+        17.660321,
+        -180.0
+      ]
+    },
+    {
+      "diameters_mm": [
+        11.5
+      ],
+      "segment_count": 1,
+      "position_mm": [
+        0.0,
+        205.0,
+        -80.0
+      ]
+    }
+  ],
+  "planar_face_evidence": {
+    "front_z0_areas_mm2": [
+      86668.805
+    ],
+    "back_z160_areas_mm2": [
+      86668.805
+    ],
+    "criterion": "z=0 外法向 +Z 与 z=-160 外法向 -Z 各存在面积 > 50000 mm² 的平面"
+  }
+}

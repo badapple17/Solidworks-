@@ -1,0 +1,14 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.sldprt binary
+*.sldasm binary
+*.slddrw binary
+*.SLDPRT binary
+*.SLDASM binary
+*.SLDDRW binary
+*.zip binary
+*.PNG binary
+*.JPG binary
+*.PDF binary

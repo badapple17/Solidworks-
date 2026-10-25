@@ -1,0 +1,234 @@
+{
+  "version": "v3",
+  "mode": "A_schematic",
+  "input_type": "text_brief",
+  "units": "mm",
+  "coordinate": "X=width, Y=height, Z=wheel_axis; Front Plane=front wheel face",
+  "parameters": {
+    "rim_flange_od_mm": {
+      "value": 470.0,
+      "source": "assumed"
+    },
+    "rim_barrel_od_mm": {
+      "value": 450.0,
+      "source": "assumed"
+    },
+    "rim_width_mm": {
+      "value": 200.0,
+      "source": "assumed"
+    },
+    "flange_width_mm": {
+      "value": 12.0,
+      "source": "assumed"
+    },
+    "rim_wall_mm": {
+      "value": 10.0,
+      "source": "assumed"
+    },
+    "front_lip_mm": {
+      "value": 20.0,
+      "source": "assumed"
+    },
+    "web_thickness_mm": {
+      "value": 20.0,
+      "source": "assumed"
+    },
+    "hub_od_mm": {
+      "value": 160.0,
+      "source": "assumed"
+    },
+    "hub_length_mm": {
+      "value": 60.0,
+      "source": "assumed"
+    },
+    "bore_d_mm": {
+      "value": 70.5,
+      "source": "assumed"
+    },
+    "bolt_pcd_mm": {
+      "value": 114.3,
+      "source": "assumed"
+    },
+    "bolt_d_mm": {
+      "value": 14.0,
+      "source": "assumed"
+    },
+    "bolt_n": {
+      "value": 5,
+      "source": "assumed"
+    },
+    "spoke_n": {
+      "value": 5,
+      "source": "assumed"
+    },
+    "window_inner_r_mm": {
+      "value": 95.0,
+      "source": "assumed"
+    },
+    "window_outer_r_mm": {
+      "value": 195.0,
+      "source": "assumed"
+    },
+    "window_half_angle_deg": {
+      "value": 24.0,
+      "source": "assumed"
+    },
+    "valve_d_mm": {
+      "value": 11.5,
+      "source": "assumed"
+    },
+    "valve_z_mm": {
+      "value": -80.0,
+      "source": "assumed"
+    }
+  },
+  "derived": {
+    "rim_inner_radius_mm": 215.0,
+    "hub_radius_mm": 80.0,
+    "bore_radius_mm": 35.25,
+    "bolt_pcd_radius_mm": 57.15,
+    "rim_back_z_mm": -180.0,
+    "web_back_z_mm": -20.0,
+    "hub_back_z_mm": -60.0,
+    "back_face_z_mm": -160.0,
+    "back_web_face_z_mm": -140.0,
+    "back_hub_end_z_mm": -100.0
+  },
+  "expected_volume_mm3": 7811777.086,
+  "actual_volume_mm3": 7811777.122,
+  "envelope_mm": {
+    "length": 470.0,
+    "width": 470.0,
+    "height": 200.0,
+    "axis_order": "model_xyz"
+  },
+  "body_count": 1,
+  "internal_cylindrical_faces": 15,
+  "real_hole_count": 7,
+  "hole_group_evidence": [
+    {
+      "position_mm": [
+        0.0,
+        0.0,
+        -180.0
+      ],
+      "diameters_mm": [
+        70.5
+      ],
+      "segment_count": 2,
+      "feature_kind": "simple"
+    },
+    {
+      "position_mm": [
+        0.0,
+        57.15,
+        -180.0
+      ],
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "feature_kind": "simple"
+    },
+    {
+      "position_mm": [
+        -54.35288,
+        17.660321,
+        -180.0
+      ],
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "feature_kind": "simple"
+    },
+    {
+      "position_mm": [
+        -33.591927,
+        -46.235321,
+        -180.0
+      ],
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "feature_kind": "simple"
+    },
+    {
+      "position_mm": [
+        33.591927,
+        -46.235321,
+        -180.0
+      ],
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "feature_kind": "simple"
+    },
+    {
+      "position_mm": [
+        54.35288,
+        17.660321,
+        -180.0
+      ],
+      "diameters_mm": [
+        14.0
+      ],
+      "segment_count": 2,
+      "feature_kind": "simple"
+    },
+    {
+      "position_mm": [
+        0.0,
+        205.0,
+        -80.0
+      ],
+      "diameters_mm": [
+        11.5
+      ],
+      "segment_count": 1,
+      "feature_kind": "simple"
+    }
+  ],
+  "assumptions": [
+    "前后对称双面 5 辐单件轮毂，不含轮胎、轮辋装饰罩、螺母。",
+    "轮辋法兰外径 470、筒身 450、总宽 200，按 17–18 英寸级视觉比例取值。",
+    "前后轮辐板与轮毂关于 Z=-80 镜像对称，前后各 5 根辐条。",
+    "中心孔 70.5、5×114.3 PCD、φ14 螺栓孔贯穿前后两个轮毂。",
+    "辐窗为前后贯通的 5 个梯形窗，未做圆角与拔模。",
+    "气门嘴孔为顶部径向 φ11.5 通孔，位于轮辋中部 z=-80，仅示意。",
+    "材料未指定，模型为纯几何体，不包含材料属性。"
+  ],
+  "hole_evidence_notes": [
+    "hole_count / internal_cylindrical_faces 统计的是 B-Rep 内部圆柱面，不是孔的数量。",
+    "中心孔与螺栓孔贯穿前后两个轮毂，各形成前后两段圆柱面；辐窗为贯穿切割，不产生圆柱面孔。",
+    "real_hole_count 按同轴孔组统计：中心孔 φ70.5 + 5×φ14 螺栓孔 + 气门嘴孔 φ11.5 = 7 个唯一孔。"
+  ],
+  "part_file": "C:\\Users\\yushe\\Desktop\\独立工作demo\\wheel_model\\car_wheel_v3.SLDPRT",
+  "step_file": "C:\\Users\\yushe\\Desktop\\独立工作demo\\wheel_model\\car_wheel_v3.STEP",
+  "review_report": "C:\\Users\\yushe\\Desktop\\独立工作demo\\wheel_model\\review_v3\\car_wheel_v3_review_report.json",
+  "reopen_verified": true,
+  "reopen_envelope_mm": {
+    "length": 470.0,
+    "width": 470.0,
+    "height": 200.0
+  },
+  "reopen_volume_mm3": 7811777.122,
+  "reopen_body_count": 1,
+  "hole_validation_status": "pass",
+  "hole_validation_errors_mm": {
+    "diameter": 0.0,
+    "position": 0.0
+  },
+  "real_hole_group_count": 7,
+  "planar_face_evidence": {
+    "front_z0_areas_mm2": [
+      86668.805
+    ],
+    "back_z160_areas_mm2": [
+      86668.805
+    ],
+    "criterion": "z=0 外法向 +Z 与 z=-160 外法向 -Z 各存在面积 > 50000 mm² 的平面"
+  }
+}

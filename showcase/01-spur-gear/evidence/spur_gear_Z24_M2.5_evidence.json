@@ -1,0 +1,30 @@
+{
+  "cad_spec": {
+    "type": "external_spur_gear",
+    "teeth": 24,
+    "module_mm": 2.5,
+    "pressure_angle_deg": 20.0,
+    "pitch_diameter_mm": 60.0,
+    "outside_diameter_mm": 65.0,
+    "root_diameter_mm": 53.75,
+    "face_width_mm": 12.0,
+    "hub_diameter_mm": 36.0,
+    "hub_width_mm": 20.0,
+    "bore_diameter_mm": 20.0
+  },
+  "measurement_source": "SolidWorks API/B-Rep",
+  "units": "mm",
+  "validation": {
+    "body_count": 1,
+    "size_mm": [
+      65.0,
+      65.0,
+      20.0
+    ],
+    "cylindrical_radii_mm": [
+      10.0,
+      18.0,
+      18.0
+    ]
+  }
+}

@@ -1,0 +1,255 @@
+{
+  "schema_version": "1.0",
+  "purpose": "solidworks-plus-plus 的可重复验收用例。低成本模型必须按 SKILL.md 路线执行，并用 expected 中的证据自检；不合格就返工，不要只交文件。",
+  "environment": {
+    "solidworks": "2023 SP0.1",
+    "python": "py -3.12",
+    "skill_dir": "<skill>（SKILL.md 所在目录）"
+  },
+  "cases": [
+    {
+      "id": "d2p_b_link_001",
+      "golden": true,
+      "route": "drawing_to_part",
+      "mode": "B",
+      "prompt": "按这张三视图建出精确三维模型：底板 30×25×5，左侧开口槽高 13、深 10，主圆凸台 φ25×10，主圆孔 φ15 贯穿，中心距 37，中心线 32°，端环 φ12×4，端环孔 φ8 贯穿。",
+      "dataset_ref": {"bank": "64", "item": "001", "kind": "drawing"},
+      "expected": {
+        "body_count": 1,
+        "envelope_mm": [67.37778, 38.107013, 10.0],
+        "envelope_tolerance_mm": 0.1,
+        "holes": [
+          {"diameter_mm": 15.0, "through": true},
+          {"diameter_mm": 8.0, "through": true}
+        ],
+        "artifacts": ["sldprt", "preview", "review_report"],
+        "review_status": "pass"
+      },
+      "notes": "本机已实测的黄金用例。Front 视图是平面轮廓，题目图的 Front 是侧剖面，交付说明要写清视图角色。",
+      "failure_signals": ["包围盒对不上仍继续加特征", "孔没切穿", "特征返回 None 不检查", "把估读尺寸标成 explicit"]
+    },
+    {
+      "id": "d2p_b_plate_holes",
+      "golden": true,
+      "route": "drawing_to_part",
+      "mode": "B",
+      "prompt": "建一块 120×80×12 的安装板，四角 φ9 通孔，孔心距边 12；板中心 φ22 沉孔深 6，通孔 φ10（沉孔从顶面下刀）；板左侧开 U 形缺口，槽深 20、槽宽 40，沿板宽居中，从 x=0 边缘开口。",
+      "expected": {
+        "body_count": 1,
+        "envelope_mm": [120.0, 80.0, 12.0],
+        "envelope_tolerance_mm": 0.1,
+        "volume_mm3": 99794.337,
+        "volume_tolerance_mm3": 1.0,
+        "hole_count": 6,
+        "artifacts": ["sldprt", "parameter_table", "preview", "review_report"],
+        "review_status": "pass"
+      },
+      "notes": "本机已实测（2026-10-24，由只读 L1 文档的受限 agent 生成脚本后真跑）：1 实体、包围盒 120×80×12、6 个圆柱面（4×φ9 + φ10 + φ22）、复合孔 [10,22]、体积 99794.337 mm³。方向要点：板体 extrude_boss(direction=False) 向 +Z，但通孔和缺口切除要 direction=True——extrude_cut 与 extrude_boss 的 direction 语义相反；只有顶面偏置面 Z=12 的沉孔用 direction=False。原题面曾同时写 φ40 和 φ22 沉孔，互相矛盾，已改为单级 φ22；真实任务遇到这种矛盾必须问用户。",
+      "failure_signals": ["孔位按屏幕坐标放置", "沉孔只切了倒角", "缺口把板切成两个实体"]
+    },
+    {
+      "id": "d2p_b_stepped_shaft",
+      "route": "drawing_to_part",
+      "mode": "B",
+      "prompt": "按图建一根三段台阶轴：φ30×40、φ20×60、φ14×30，总长 130；右端 φ14 段铣一个 5×5×20 的键槽，两端 C1 倒角。",
+      "expected": {
+        "body_count": 1,
+        "envelope_mm": [130.0, 30.0, 30.0],
+        "envelope_tolerance_mm": 0.1,
+        "artifacts": ["sldprt", "preview", "review_report"],
+        "review_status": "pass"
+      },
+      "notes": "对应 references/recipes/stepped-shaft.md。旋转轮廓 + 中心线一次成型，键槽用偏置面盲切。",
+      "failure_signals": ["逐段拉伸导致接缝", "旋转轮廓未闭合", "键槽切穿整个轴"]
+    },
+    {
+      "id": "d2p_b_flange_cbore",
+      "golden": true,
+      "route": "drawing_to_part",
+      "mode": "B",
+      "prompt": "建一个法兰：外径 φ120，中心孔 φ40，法兰厚 12；轮毂 φ60、高 20；6×φ9 螺栓孔均布在 PCD 90 上；沉孔 φ15 深 6，开在与轮毂同侧的法兰端面 x=12 上（大径朝外）。",
+      "expected": {
+        "body_count": 1,
+        "envelope_mm": [32.0, 120.0, 120.0],
+        "envelope_tolerance_mm": 0.1,
+        "volume_mm3": 143401.138,
+        "volume_tolerance_mm3": 1.0,
+        "hole_count": 13,
+        "compound_holes": {
+          "count": 6,
+          "diameters_mm": [9.0, 15.0],
+          "counterbore_face_x_mm": 12.0,
+          "counterbore_bottom_x_mm": 6.0
+        },
+        "artifacts": ["sldprt", "preview", "review_report"],
+        "review_status": "pass"
+      },
+      "notes": "本机已实测（2026-10-24）：图纸指定沉孔在轮毂一侧法兰端面 x=12；PCD 90 > 轮毂外径 60，该面 r=45 处有材料。若误从轮毂端面 x=32 下刀，草图悬空、切除返回 None。through=False 只切沉孔，6 个复合孔均为 φ9+φ15 两段；体积 143401.138 mm³。",
+      "failure_signals": ["从轮毂端面下刀导致草图悬空、切除返回 None", "对已打穿的同径孔再切一次通孔", "沉孔开在没有材料的面上"]
+    },
+    {
+      "id": "d2p_a_photo_sketch",
+      "route": "drawing_to_part",
+      "mode": "A",
+      "prompt": "照着这张轴测图做一个示意模型就行，不用精确尺寸，比例像即可。",
+      "expected": {
+        "body_count": 1,
+        "envelope_tolerance_ratio": 0.05,
+        "artifacts": ["sldprt", "preview", "review_report"],
+        "must_state_assumptions": true,
+        "review_status": "pass"
+      },
+      "notes": "A 模式允许估读，但必须在交付说明列出 assumed/estimated；不得声称精确。",
+      "failure_signals": ["把估读值当 explicit", "不列假设清单", "为凑尺寸反复重建超过 3 次"]
+    },
+    {
+      "id": "d2p_b_missing_dims",
+      "golden": true,
+      "route": "drawing_to_part",
+      "mode": "B",
+      "prompt": "按这张图建精确模型。",
+      "input_note": "图纸只给出外形轮廓，关键孔距、板厚、凸台高度模糊或被裁掉。",
+      "expected": {
+        "must_ask_before_build": true,
+        "question_topics": ["板厚或总高", "孔距/孔位", "凸台直径或高度", "圆角/倒角是否保留"],
+        "max_questions": 4,
+        "must_offer_defaults": true,
+        "must_not_build_silently": true
+      },
+      "notes": "对应 references/modes-and-questions.md。先问最能改变拓扑的 3–4 项，不要逐条盘问所有尺寸；一轮答完仍有关键不确定项可以再问一轮，但只有用户说“你定/确定不了”后才允许用推荐值建模。",
+      "failure_signals": ["直接开建并声称精确", "一次问 10 个以上问题", "问题没有推荐值", "推荐值未经确认就当答案用"]
+    },
+    {
+      "id": "d2p_a_ambiguous_object",
+      "golden": true,
+      "route": "drawing_to_part",
+      "mode": "A",
+      "prompt": "帮我建个模型，图大概就这样。",
+      "input_note": "用户只给了一张模糊的轴测图，没说是零件还是装配体，也没说用途。",
+      "expected": {
+        "must_ask_before_build": true,
+        "question_topics": ["做的是什么/用途", "单件还是装配体", "大致结构或关键形状"],
+        "max_questions": 4,
+        "must_offer_defaults": true,
+        "must_not_build_silently": true
+      },
+      "notes": "模式 A 也不许在对象不清时凭想象建模：先问清对象和拓扑（见 modes-and-questions.md 第 1 节第 0 步），再按 A 模式估尺寸。",
+      "failure_signals": ["凭想象直接开建", "只问模式不问对象", "问题没有推荐值", "把猜测当用户确认"]
+    },
+    {
+      "id": "m2d_a3_first_angle",
+      "golden": true,
+      "route": "model_to_three_view",
+      "mode": "B",
+      "prompt": "把这个零件出成 A3 第一角三视图，带模型尺寸和等轴测图，输出 SLDDRW、PDF 和预览。",
+      "input_note": "使用 d2p_b_link_001 生成的 SLDPRT，或任意单实体零件。",
+      "expected": {
+        "sheet": "A3",
+        "sheet_size_m": [0.42, 0.297],
+        "sheet_size_verified": true,
+        "projection": "first",
+        "min_view_count": 3,
+        "has_isometric": true,
+        "min_dimension_count": 6,
+        "preview_not_blank": true,
+        "artifacts": ["slddrw", "pdf", "preview", "drawing_report"],
+        "report_status": "pass"
+      },
+      "notes": "本机黄金用例：001 连杆出图 4 视图、23 尺寸、A3 校验通过。",
+      "failure_signals": ["configured=true 就宣布成功", "actual_size_m 仍是 A4", "dimension_count=0 说已标注", "只交 PDF 不交 SLDDRW"]
+    },
+    {
+      "id": "m2d_a4_third_angle",
+      "route": "model_to_three_view",
+      "mode": "B",
+      "prompt": "出一张 A4 横放、第三角投影的三视图，不要等轴测，尺寸用模型尺寸。",
+      "expected": {
+        "sheet": "A4",
+        "sheet_size_m": [0.297, 0.21],
+        "sheet_size_verified": true,
+        "projection": "third",
+        "view_layout": "俯视图在上、右视图在右",
+        "min_view_count": 3,
+        "artifacts": ["slddrw", "pdf", "preview", "drawing_report"]
+      },
+      "notes": "第三角只用于出口图纸；国内加工图必须第一角。",
+      "failure_signals": ["第三角仍按第一角摆位", "A4 用了 A3 码", "把第三角图交给国内加工厂"]
+    },
+    {
+      "id": "m2d_dimension_zero",
+      "route": "model_to_three_view",
+      "mode": "B",
+      "prompt": "这个模型出图后没有尺寸，帮我看看为什么。",
+      "input_note": "模型由 API 直接 CreateLine/CreateCircle 构建，草图没有 DisplayDimension。",
+      "expected": {
+        "diagnosis": "模型缺少显示尺寸，InsertModelAnnotations 无尺寸可导入",
+        "fix": "回模型对每个草图调用 auto_dimension_sketch()，孔特征在创建时自动标注，再重新出图",
+        "must_not": ["手工伪造尺寸", "声称已自动标注", "直接把 dimension_count=0 的图交付"]
+      },
+      "notes": "对应 references/part-to-drawing.md 第 5 节与 quick-snippets 第 9 节。",
+      "failure_signals": ["用注释文字冒充尺寸", "让用户自己标", "不检查 dimension_count"]
+    },
+    {
+      "id": "d2p_b_conflicting_dims",
+      "route": "drawing_to_part",
+      "mode": "B",
+      "prompt": "按这张图建精确模型。",
+      "input_note": "主视图标 φ40，俯视图的沉孔标 φ22；主视图总长 130，但分段尺寸相加为 120。",
+      "expected": {
+        "must_ask_before_build": true,
+        "question_topics": ["φ40 与 φ22 沉孔哪个为准", "总长 130 与分段和 120 的冲突"],
+        "must_list_conflict_evidence": true,
+        "max_questions": 4,
+        "must_not_build_silently": true,
+        "must_not_pick_one_silently": true
+      },
+      "notes": "对应 references/modes-and-questions.md §2.1 第 9 条：尺寸来源冲突要列出处问取舍，不许静默取一个。",
+      "failure_signals": ["自行假设 40 是外径、22 是沉孔", "把总长硬改成分段和", "不列冲突出处"]
+    },
+    {
+      "id": "d2p_b_photo_reproduce",
+      "route": "drawing_to_part",
+      "mode": "B",
+      "prompt": "照着这张照片做一个一模一样的零件，要精确。",
+      "input_note": "照片里只有零件本体，没有任何已知尺寸参照物。",
+      "expected": {
+        "must_ask_before_build": true,
+        "question_topics": ["复刻还是灵感", "比例基准/主尺寸"],
+        "must_not_assume_default_size": true,
+        "must_state_estimation_limits": true,
+        "max_questions": 4
+      },
+      "notes": "对应 references/modes-and-questions.md §2.1 第 8 条：照片复刻必须有比例基准；没有参照物就先问主尺寸，不许默认 100 mm。",
+      "failure_signals": ["没有参照物直接估尺寸", "把 estimated 当 explicit", "声称和照片一模一样"]
+    },
+    {
+      "id": "m2d_b_drawing_document",
+      "route": "model_to_three_view",
+      "mode": "B",
+      "prompt": "把这个零件出成可加工的工程图，标题栏和公差都补全。",
+      "input_note": "用户没说材料、图号、未注公差等级、设计者。",
+      "expected": {
+        "must_ask_before_delivery": true,
+        "question_topics": ["材料", "未注公差等级", "图号/零件名称", "设计/审核"],
+        "must_not_invent": ["材料", "公差", "图号"],
+        "must_mark_undecided": true
+      },
+      "notes": "对应 references/part-to-drawing.md §5.5/§6：公差只能来自用户或标准；标题栏字段不许猜。缺来源就列为未决项，不许默认 45 钢或自定 ±0.1。",
+      "failure_signals": ["默认材料 45 钢", "自己发明 ±0.1", "标题栏留空还宣称可加工"]
+    },
+    {
+      "id": "m2d_pdf_check_required",
+      "route": "model_to_three_view",
+      "mode": "B",
+      "prompt": "出完图帮我确认 PDF 里的尺寸有没有悬空、重叠、跑出图框。",
+      "expected": {
+        "must_run": ["scripts/check_drawing_pdf.py 或 report.pdf_check"],
+        "must_report": ["finding 代码", "返回码/status", "未检查项"],
+        "must_not": ["只看 view_count 就宣布通过", "把 skipped 当 pass"],
+        "artifacts": ["pdf_check_report"]
+      },
+      "notes": "对应 references/part-to-drawing.md §7.5：机器初筛抓 DIM_NO_LEADER/DIM_FLOATING/OUT_OF_FRAME/VIEW_OVERLAP；通过不等于图纸合格，未执行要标 not_run。",
+      "failure_signals": ["没跑检查就说没问题", "把 skipped 写成 pass", "只报 view_count"]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "a01_deployed": {
+    "interference": {
+      "status": "pass",
+      "interference_count": 0,
+      "items": [],
+      "manual_review_required": false
+    },
+    "review": "pass",
+    "score": 100
+  },
+  "a02_folded": {
+    "interference": {
+      "status": "pass",
+      "interference_count": 0,
+      "items": [],
+      "manual_review_required": false
+    },
+    "review": "pass",
+    "score": 100
+  }
+}

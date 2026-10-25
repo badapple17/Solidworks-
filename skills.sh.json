@@ -1,0 +1,11 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "CAD",
+      "description": "SolidWorks modeling, drawing and verification workflows.",
+      "skills": ["solidworks-plus-plus"]
+    }
+  ]
+}
